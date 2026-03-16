@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 
+	"github.com/branchgrove/terraform-provider-debian/internal/ssh"
 	"github.com/hashicorp/terraform-plugin-framework/action"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
@@ -42,6 +43,11 @@ func (p *DebianProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	sshManager := ssh.NewManager()
+
+	resp.DataSourceData = sshManager
+	resp.ResourceData = sshManager
 }
 
 func (p *DebianProvider) Resources(ctx context.Context) []func() resource.Resource {
