@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/branchgrove/terraform-provider-debian/internal/ssh"
 	"github.com/hashicorp/terraform-plugin-framework/action"
@@ -11,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 var _ provider.Provider = &DebianProvider{}
@@ -22,7 +24,20 @@ type DebianProvider struct {
 	version string
 }
 
-type DebianProviderModel struct{}
+type DebianProviderModel struct {
+	PrivateKey  types.String `tfsdk:"private_key"`
+	PrivateKeys types.Map    `tfsdk:"private_keys"`
+}
+
+// ProviderData is passed to resources via Configure. It carries the shared SSH
+// connection pool and the provider-level authentication. Resources define their
+// own connection details (hostname, port, user, host_key) but fall back to the
+// provider for authentication when no per-resource auth is specified.
+type ProviderData struct {
+	SSHManager  *ssh.Manager
+	PrivateKey  string            // default private key, used when the resource ssh block omits auth
+	PrivateKeys map[string]string // public_key -> private_key, looked up when a resource sets public_key
+}
 
 func (p *DebianProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "debian"
@@ -31,7 +46,20 @@ func (p *DebianProvider) Metadata(ctx context.Context, req provider.MetadataRequ
 
 func (p *DebianProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Attributes: map[string]schema.Attribute{},
+		MarkdownDescription: "The Debian provider manages resources on remote Debian hosts over SSH.",
+		Attributes: map[string]schema.Attribute{
+			"private_key": schema.StringAttribute{
+				MarkdownDescription: "Default SSH private key used to authenticate when a resource's `ssh` block does not specify `private_key`, `public_key`, or `password`.",
+				Optional:            true,
+				Sensitive:           true,
+			},
+			"private_keys": schema.MapAttribute{
+				MarkdownDescription: "A map of SSH public keys to their corresponding private keys. Resources can reference a public key in their `ssh` block to look up the private key for authentication.",
+				Optional:            true,
+				Sensitive:           true,
+				ElementType:         types.StringType,
+			},
+		},
 	}
 }
 
@@ -39,15 +67,39 @@ func (p *DebianProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	var data DebianProviderModel
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	sshManager := ssh.NewManager()
+	pd := &ProviderData{
+		SSHManager:  ssh.NewManager(),
+		PrivateKeys: make(map[string]string),
+	}
 
-	resp.DataSourceData = sshManager
-	resp.ResourceData = sshManager
+	if !data.PrivateKey.IsNull() {
+		pd.PrivateKey = data.PrivateKey.ValueString()
+	}
+
+	if !data.PrivateKeys.IsNull() {
+		diags := data.PrivateKeys.ElementsAs(ctx, &pd.PrivateKeys, false)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
+	// Validate that all private keys in the key ring are parseable.
+	for pub, priv := range pd.PrivateKeys {
+		if _, err := ssh.PrivateKeyAuth(priv); err != nil {
+			resp.Diagnostics.AddError(
+				"Invalid private key in key ring",
+				fmt.Sprintf("The private key for public key %q is invalid: %s", pub, err),
+			)
+		}
+	}
+
+	resp.DataSourceData = pd
+	resp.ResourceData = pd
 }
 
 func (p *DebianProvider) Resources(ctx context.Context) []func() resource.Resource {

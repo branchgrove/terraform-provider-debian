@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/branchgrove/terraform-provider-debian/internal/ssh"
@@ -26,7 +27,10 @@ func NewFileResource() resource.Resource {
 }
 
 type FileResource struct {
-	sshManager *ssh.Manager
+	// providerData carries the shared SSH connection pool and provider-level
+	// authentication (default private key and key ring). Resources use it as
+	// a fallback when their ssh block does not specify auth directly.
+	providerData *ProviderData
 }
 
 type FileResourceModel struct {
@@ -51,7 +55,7 @@ func (r *FileResource) Metadata(ctx context.Context, req resource.MetadataReques
 
 func (r *FileResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "`system_file` manages a file on the debian host.",
+		MarkdownDescription: "`debian_file` manages a file on the debian host.",
 
 		Attributes: map[string]schema.Attribute{
 			"path": schema.StringAttribute{
@@ -133,18 +137,16 @@ func (r *FileResource) Configure(ctx context.Context, req resource.ConfigureRequ
 		return
 	}
 
-	sshManager, ok := req.ProviderData.(*ssh.Manager)
-
+	pd, ok := req.ProviderData.(*ProviderData)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *http.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *ProviderData, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
-
 		return
 	}
 
-	r.sshManager = sshManager
+	r.providerData = pd
 }
 
 func (r *FileResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -155,7 +157,7 @@ func (r *FileResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	client, err := data.Connection.GetClient(ctx, r.sshManager)
+	client, err := data.Connection.GetClient(ctx, r.providerData)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get SSH client", err.Error())
 		return
@@ -179,7 +181,7 @@ func (r *FileResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	client, err := data.Connection.GetClient(ctx, r.sshManager)
+	client, err := data.Connection.GetClient(ctx, r.providerData)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get SSH client", err.Error())
 		return
@@ -203,7 +205,7 @@ func (r *FileResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	client, err := data.Connection.GetClient(ctx, r.sshManager)
+	client, err := data.Connection.GetClient(ctx, r.providerData)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get SSH client", err.Error())
 		return
@@ -227,7 +229,7 @@ func (r *FileResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		return
 	}
 
-	client, err := data.Connection.GetClient(ctx, r.sshManager)
+	client, err := data.Connection.GetClient(ctx, r.providerData)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get SSH client", err.Error())
 		return
@@ -238,8 +240,87 @@ func (r *FileResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	}
 }
 
+// ImportState parses a composite import ID and populates the ssh connection and
+// path in state so that Read can connect and fetch the file metadata.
+//
+// Supported formats:
+//
+//	<user>@<host>:<port>:<path>                  -- uses the provider's default private_key
+//	<user>:<public_key>@<host>:<port>:<path>     -- looks up public_key in the provider's private_keys
 func (r *FileResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("path"), req, resp)
+	user, publicKey, host, port, filePath, err := parseImportID(req.ID)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("path"), filePath)...)
+
+	conn := ConnectionModel{
+		Hostname: types.StringValue(host),
+		Port:     types.Int32Value(int32(port)),
+		User:     types.StringValue(user),
+	}
+	if publicKey != "" {
+		conn.PublicKey = types.StringValue(publicKey)
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ssh"), conn)...)
+}
+
+// parseImportID extracts connection and path components from a composite ID.
+//
+// Format: [user[:public_key]@]host:port:path
+//
+// The last "@" separates auth from host. In the host part, the first ":"
+// delimits host from port, and the second ":" delimits port from the absolute
+// file path.
+func parseImportID(id string) (user, publicKey, host string, port int, filePath string, err error) {
+	authPart := ""
+	hostPart := id
+
+	if idx := strings.LastIndex(id, "@"); idx != -1 {
+		authPart = id[:idx]
+		hostPart = id[idx+1:]
+	}
+
+	if authPart != "" {
+		if colonIdx := strings.Index(authPart, ":"); colonIdx != -1 {
+			user = authPart[:colonIdx]
+			publicKey = authPart[colonIdx+1:]
+		} else {
+			user = authPart
+		}
+	}
+
+	if user == "" {
+		user = "root"
+	}
+
+	// hostPart is "host:port:/absolute/path"
+	firstColon := strings.Index(hostPart, ":")
+	if firstColon == -1 {
+		return "", "", "", 0, "", fmt.Errorf("expected format [user[:public_key]@]host:port:path, got %q", id)
+	}
+	host = hostPart[:firstColon]
+	rest := hostPart[firstColon+1:]
+
+	secondColon := strings.Index(rest, ":")
+	if secondColon == -1 {
+		return "", "", "", 0, "", fmt.Errorf("expected format [user[:public_key]@]host:port:path, got %q", id)
+	}
+	portStr := rest[:secondColon]
+	filePath = rest[secondColon+1:]
+
+	port, err = strconv.Atoi(portStr)
+	if err != nil {
+		return "", "", "", 0, "", fmt.Errorf("invalid port %q in import ID %q", portStr, id)
+	}
+
+	if filePath == "" || filePath[0] != '/' {
+		return "", "", "", 0, "", fmt.Errorf("path must be absolute, got %q in import ID %q", filePath, id)
+	}
+
+	return user, publicKey, host, port, filePath, nil
 }
 
 // toPutFileCommand converts the Terraform model to an ssh.PutFileCommand,
