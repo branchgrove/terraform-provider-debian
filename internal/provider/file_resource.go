@@ -187,6 +187,8 @@ func (r *FileResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
+	previousSha := data.SHA256.ValueString()
+
 	file, err := client.GetFile(ctx, data.Path.ValueString())
 	if err != nil {
 		resp.State.RemoveResource(ctx)
@@ -194,6 +196,14 @@ func (r *FileResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 
 	data.applyFileState(file)
+
+	// When the remote SHA changes, the file was modified out of band. Null out
+	// content so Terraform re-applies it from config on the next apply. This
+	// avoids reading file content over SSH on every refresh.
+	if !data.Content.IsNull() && data.SHA256.ValueString() != previousSha {
+		data.Content = types.StringNull()
+	}
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
