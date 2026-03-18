@@ -311,6 +311,7 @@ func parseImportID(id string) (user, publicKey, host string, port int, filePath 
 	if firstColon == -1 {
 		return "", "", "", 0, "", fmt.Errorf("expected format [user[:public_key]@]host:port:path, got %q", id)
 	}
+
 	host = hostPart[:firstColon]
 	rest := hostPart[firstColon+1:]
 
@@ -318,6 +319,7 @@ func parseImportID(id string) (user, publicKey, host string, port int, filePath 
 	if secondColon == -1 {
 		return "", "", "", 0, "", fmt.Errorf("expected format [user[:public_key]@]host:port:path, got %q", id)
 	}
+
 	portStr := rest[:secondColon]
 	filePath = rest[secondColon+1:]
 
