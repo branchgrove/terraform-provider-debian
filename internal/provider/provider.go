@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/branchgrove/terraform-provider-debian/internal/ssh"
 	"github.com/hashicorp/terraform-plugin-framework/action"
@@ -85,16 +84,6 @@ func (p *DebianProvider) Configure(ctx context.Context, req provider.ConfigureRe
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
-		}
-	}
-
-	// Validate that all private keys in the key ring are parseable.
-	for pub, priv := range pd.PrivateKeys {
-		if _, err := ssh.PrivateKeyAuth(priv); err != nil {
-			resp.Diagnostics.AddError(
-				"Invalid private key in key ring",
-				fmt.Sprintf("The private key for public key %q is invalid: %s", pub, err),
-			)
 		}
 	}
 
