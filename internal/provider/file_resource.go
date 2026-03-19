@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -191,7 +192,11 @@ func (r *FileResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 	file, err := client.GetFile(ctx, data.Path.ValueString())
 	if err != nil {
-		resp.State.RemoveResource(ctx)
+		if errors.Is(err, ssh.ErrNotFound) {
+			resp.State.RemoveResource(ctx)
+			return
+		}
+		resp.Diagnostics.AddError("Failed to read file", err.Error())
 		return
 	}
 

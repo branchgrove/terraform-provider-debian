@@ -2,12 +2,15 @@ package ssh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path"
 	"strconv"
 	"strings"
 )
+
+var ErrNotFound = errors.New("not found")
 
 // PutFileCommand describes a file to create or overwrite on the remote host.
 // Owner/group can be specified by name or numeric ID but not both.
@@ -170,7 +173,7 @@ func (c *Client) GetFile(ctx context.Context, filePath string) (*File, error) {
 		return nil, fmt.Errorf("get file: %w", err)
 	}
 	if res.ExitCode != 0 {
-		return nil, fmt.Errorf("get file: %q does not exist or is not a regular file", filePath)
+		return nil, fmt.Errorf("get file: %q does not exist or is not a regular file: %w", filePath, ErrNotFound)
 	}
 
 	res, err = c.Run(ctx, "stat -c '%U\n%G\n%u\n%g\n%a\n%s' \"$FILE\"", env, nil)
