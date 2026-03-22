@@ -103,6 +103,7 @@ func (p *DebianProvider) Resources(ctx context.Context) []func() resource.Resour
 func (p *DebianProvider) EphemeralResources(ctx context.Context) []func() ephemeral.EphemeralResource {
 	return []func() ephemeral.EphemeralResource{
 		NewCommandEphemeral,
+		NewFileEphemeral,
 	}
 }
 
