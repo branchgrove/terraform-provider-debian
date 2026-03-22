@@ -103,7 +103,9 @@ func (p *DebianProvider) EphemeralResources(ctx context.Context) []func() epheme
 }
 
 func (p *DebianProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+	return []func() datasource.DataSource{
+		NewCommandDataSource,
+	}
 }
 
 func (p *DebianProvider) Functions(ctx context.Context) []func() function.Function {

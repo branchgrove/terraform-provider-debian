@@ -29,6 +29,18 @@ type ConnectionModel struct {
 	HostKey    types.String `tfsdk:"host_key"`
 }
 
+// ApplyDefaults fills in default values for optional connection fields that
+// have no schema-level default (e.g. data source schemas). Call this before
+// GetClient when the schema does not set defaults for port and user.
+func (c *ConnectionModel) ApplyDefaults() {
+	if c.Port.IsNull() || c.Port.IsUnknown() {
+		c.Port = types.Int32Value(22)
+	}
+	if c.User.IsNull() || c.User.IsUnknown() {
+		c.User = types.StringValue("root")
+	}
+}
+
 // GetClient returns an SSH client for this connection. Authentication is
 // resolved with the following priority:
 //  1. private_key on the resource ssh block (direct key)
