@@ -212,6 +212,39 @@ func (c *Client) GetFile(ctx context.Context, filePath string) (*File, error) {
 	}, nil
 }
 
+// ReadFile returns the content of a remote file as a string. It fails if the
+// file is larger than maxSize bytes to avoid pulling unexpectedly large content.
+func (c *Client) ReadFile(ctx context.Context, filePath string, maxSize int) (string, error) {
+	env := map[string]string{"FILE": filePath}
+
+	_, err := c.Run(ctx, `test -f "$FILE"`, env, nil)
+	if err != nil {
+		if _, ok := errors.AsType[*RunError](err); ok {
+			return "", fmt.Errorf("read file: %q does not exist or is not a regular file: %w", filePath, ErrNotFound)
+		}
+		return "", fmt.Errorf("read file: %w", err)
+	}
+
+	res, err := c.Run(ctx, "stat -c '%s' \"$FILE\"", env, nil)
+	if err != nil {
+		return "", fmt.Errorf("read file: stat %q: %w", filePath, err)
+	}
+	size, err := strconv.Atoi(strings.TrimSpace(string(res.Stdout)))
+	if err != nil {
+		return "", fmt.Errorf("read file: stat %q: parse size: %w", filePath, err)
+	}
+	if size > maxSize {
+		return "", fmt.Errorf("read file: %q is %d bytes, exceeds max_size %d", filePath, size, maxSize)
+	}
+
+	res, err = c.Run(ctx, `cat "$FILE"`, env, nil)
+	if err != nil {
+		return "", fmt.Errorf("read file: cat %q: %w", filePath, err)
+	}
+
+	return string(res.Stdout), nil
+}
+
 // DeleteFile removes a regular file on the remote host. It refuses to operate
 // on non-regular files (directories, symlinks, devices).
 func (c *Client) DeleteFile(ctx context.Context, filePath string) error {
