@@ -99,6 +99,7 @@ func (p *DebianProvider) Resources(ctx context.Context) []func() resource.Resour
 		NewDirectoryResource,
 		NewGroupResource,
 		NewUserResource,
+		NewGroupMemberResource,
 	}
 }
 
