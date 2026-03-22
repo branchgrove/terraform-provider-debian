@@ -128,6 +128,9 @@ func (p *DebianProvider) Actions(ctx context.Context) []func() action.Action {
 		NewCommandAction,
 		NewAptUpdateAction,
 		NewAptUpgradeAction,
+		NewSystemctlReloadAction,
+		NewSystemctlRestartAction,
+		NewSystemctlDaemonReloadAction,
 	}
 }
 
