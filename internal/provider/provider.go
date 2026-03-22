@@ -90,6 +90,7 @@ func (p *DebianProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	resp.DataSourceData = pd
 	resp.ResourceData = pd
 	resp.EphemeralResourceData = pd
+	resp.ActionData = pd
 }
 
 func (p *DebianProvider) Resources(ctx context.Context) []func() resource.Resource {
@@ -116,7 +117,9 @@ func (p *DebianProvider) Functions(ctx context.Context) []func() function.Functi
 }
 
 func (p *DebianProvider) Actions(ctx context.Context) []func() action.Action {
-	return []func() action.Action{}
+	return []func() action.Action{
+		NewCommandAction,
+	}
 }
 
 func New(version string) func() provider.Provider {
