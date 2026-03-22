@@ -86,7 +86,7 @@ jobs:
 
           TEST_SSH_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' debian-test)
           echo "TEST_SSH_HOST=$TEST_SSH_HOST" >> "$GITHUB_ENV"
-          echo "TEST_SSH_PUBLIC_KEY=$(cat /tmp/test_key.pub)" >> "$GITHUB_ENV"
+          echo "TEST_SSH_PUBLIC_KEY=$(awk '{print $1, $2}' /tmp/test_key.pub)" >> "$GITHUB_ENV"
           echo "TEST_SSH_PRIVATE_KEY<<EOF" >> "$GITHUB_ENV"
           cat /tmp/test_key >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
