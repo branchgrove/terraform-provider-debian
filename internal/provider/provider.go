@@ -126,6 +126,8 @@ func (p *DebianProvider) Functions(ctx context.Context) []func() function.Functi
 func (p *DebianProvider) Actions(ctx context.Context) []func() action.Action {
 	return []func() action.Action{
 		NewCommandAction,
+		NewAptUpdateAction,
+		NewAptUpgradeAction,
 	}
 }
 
