@@ -97,6 +97,7 @@ func (p *DebianProvider) Resources(ctx context.Context) []func() resource.Resour
 	return []func() resource.Resource{
 		NewFileResource,
 		NewDirectoryResource,
+		NewGroupResource,
 	}
 }
 
