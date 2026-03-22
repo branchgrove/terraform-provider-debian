@@ -94,6 +94,7 @@ func (p *DebianProvider) Configure(ctx context.Context, req provider.ConfigureRe
 func (p *DebianProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewFileResource,
+		NewDirectoryResource,
 	}
 }
 
