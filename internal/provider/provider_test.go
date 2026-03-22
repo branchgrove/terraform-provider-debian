@@ -54,16 +54,15 @@ func testSSHBlockWithPublicKey() string {
 `
 }
 
-func testImportID(filePath string) string {
-	return "root@" + os.Getenv("TEST_SSH_HOST") + ":22:" + filePath
+func testImportID(resourceID string) string {
+	return "user=root;host=" + os.Getenv("TEST_SSH_HOST") + ";port=22;id=" + resourceID
 }
 
-func testImportIDWithKey(filePath string) string {
+func testImportIDWithKey(resourceID string) string {
 	pub := os.Getenv("TEST_SSH_PUBLIC_KEY")
-	// Strip trailing comment from public key if present (key type + key data only)
 	parts := strings.Fields(pub)
 	if len(parts) >= 2 {
 		pub = parts[0] + " " + parts[1]
 	}
-	return "root:" + pub + "@" + os.Getenv("TEST_SSH_HOST") + ":22:" + filePath
+	return "user=root;host=" + os.Getenv("TEST_SSH_HOST") + ";port=22;public_key=" + pub + ";id=" + resourceID
 }

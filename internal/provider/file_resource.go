@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -258,14 +259,19 @@ func (r *FileResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 // ImportState parses a composite import ID and populates the ssh connection and
 // path in state so that Read can connect and fetch the file metadata.
 //
-// Supported formats:
+// Format: user=<user>;host=<host>;port=<port>[;public_key=<key>];id=<path>
 //
-//	<user>@<host>:<port>:<path>                  -- uses the provider's default private_key
-//	<user>:<public_key>@<host>:<port>:<path>     -- looks up public_key in the provider's private_keys
+// The "user" key defaults to "root" when omitted. Values are percent-decoded
+// so that literal semicolons can be represented as %3B.
 func (r *FileResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	user, publicKey, host, port, filePath, err := parseImportID(req.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", err.Error())
+		return
+	}
+
+	if filePath == "" || filePath[0] != '/' {
+		resp.Diagnostics.AddError("Invalid import ID", fmt.Sprintf("file path must be absolute, got %q", filePath))
 		return
 	}
 
@@ -282,62 +288,54 @@ func (r *FileResource) ImportState(ctx context.Context, req resource.ImportState
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("ssh"), conn)...)
 }
 
-// parseImportID extracts connection and path components from a composite ID.
+// parseImportID extracts connection and resource-specific ID from a composite
+// import string.
 //
-// Format: [user[:public_key]@]host:port:path
+// Format: user=<user>;host=<host>;port=<port>[;public_key=<key>];id=<resource-id>
 //
-// The last "@" separates auth from host. In the host part, the first ":"
-// delimits host from port, and the second ":" delimits port from the absolute
-// file path.
-func parseImportID(id string) (user, publicKey, host string, port int, filePath string, err error) {
-	authPart := ""
-	hostPart := id
-
-	if idx := strings.LastIndex(id, "@"); idx != -1 {
-		authPart = id[:idx]
-		hostPart = id[idx+1:]
-	}
-
-	if authPart != "" {
-		if colonIdx := strings.Index(authPart, ":"); colonIdx != -1 {
-			user = authPart[:colonIdx]
-			publicKey = authPart[colonIdx+1:]
-		} else {
-			user = authPart
+// Values are percent-decoded so that literal semicolons (%3B) are handled
+// correctly. The "user" key is optional and defaults to "root".
+func parseImportID(id string) (user, publicKey, host string, port int, resourceID string, err error) {
+	params := make(map[string]string)
+	for _, pair := range strings.Split(id, ";") {
+		eqIdx := strings.Index(pair, "=")
+		if eqIdx == -1 {
+			return "", "", "", 0, "", fmt.Errorf("invalid import ID %q: expected key=value pair, got %q", id, pair)
 		}
+		key := pair[:eqIdx]
+		val, decErr := url.PathUnescape(pair[eqIdx+1:])
+		if decErr != nil {
+			return "", "", "", 0, "", fmt.Errorf("invalid import ID %q: decode value for %q: %w", id, key, decErr)
+		}
+		params[key] = val
 	}
 
+	host = params["host"]
+	if host == "" {
+		return "", "", "", 0, "", fmt.Errorf("invalid import ID %q: missing required key \"host\"", id)
+	}
+
+	portStr := params["port"]
+	if portStr == "" {
+		return "", "", "", 0, "", fmt.Errorf("invalid import ID %q: missing required key \"port\"", id)
+	}
+	port, err = strconv.Atoi(portStr)
+	if err != nil {
+		return "", "", "", 0, "", fmt.Errorf("invalid import ID %q: invalid port %q: %w", id, portStr, err)
+	}
+
+	resourceID = params["id"]
+	if resourceID == "" {
+		return "", "", "", 0, "", fmt.Errorf("invalid import ID %q: missing required key \"id\"", id)
+	}
+
+	user = params["user"]
 	if user == "" {
 		user = "root"
 	}
 
-	// hostPart is "host:port:/absolute/path"
-	firstColon := strings.Index(hostPart, ":")
-	if firstColon == -1 {
-		return "", "", "", 0, "", fmt.Errorf("expected format [user[:public_key]@]host:port:path, got %q", id)
-	}
-
-	host = hostPart[:firstColon]
-	rest := hostPart[firstColon+1:]
-
-	secondColon := strings.Index(rest, ":")
-	if secondColon == -1 {
-		return "", "", "", 0, "", fmt.Errorf("expected format [user[:public_key]@]host:port:path, got %q", id)
-	}
-
-	portStr := rest[:secondColon]
-	filePath = rest[secondColon+1:]
-
-	port, err = strconv.Atoi(portStr)
-	if err != nil {
-		return "", "", "", 0, "", fmt.Errorf("invalid port %q in import ID %q", portStr, id)
-	}
-
-	if filePath == "" || filePath[0] != '/' {
-		return "", "", "", 0, "", fmt.Errorf("path must be absolute, got %q in import ID %q", filePath, id)
-	}
-
-	return user, publicKey, host, port, filePath, nil
+	publicKey = params["public_key"]
+	return user, publicKey, host, port, resourceID, nil
 }
 
 // toPutFileCommand converts the Terraform model to an ssh.PutFileCommand,
