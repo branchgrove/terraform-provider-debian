@@ -26,13 +26,13 @@ type CommandDataSource struct {
 }
 
 type CommandDataSourceModel struct {
-	Command    types.String `tfsdk:"command"`
-	Env        types.Map    `tfsdk:"env"`
-	Stdin      types.String `tfsdk:"stdin"`
-	AllowError types.Bool   `tfsdk:"allow_error"`
-	Stdout     types.String `tfsdk:"stdout"`
-	Stderr     types.String `tfsdk:"stderr"`
-	ExitCode   types.Int64  `tfsdk:"exit_code"`
+	Command    types.String    `tfsdk:"command"`
+	Env        types.Map       `tfsdk:"env"`
+	Stdin      types.String    `tfsdk:"stdin"`
+	AllowError types.Bool      `tfsdk:"allow_error"`
+	Stdout     types.String    `tfsdk:"stdout"`
+	Stderr     types.String    `tfsdk:"stderr"`
+	ExitCode   types.Int64     `tfsdk:"exit_code"`
 	Connection ConnectionModel `tfsdk:"ssh"`
 }
 
