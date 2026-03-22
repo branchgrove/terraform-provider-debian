@@ -6,10 +6,10 @@
 // exhaust the server's session capacity.
 //
 // Commands are executed through Client.Run, which uses Start/Wait with a
-// select on ctx.Done to support Terraform timeouts. Run returns errors only
-// for transport failures; non-zero exit codes are reported in RunResult
-// without an error, letting callers distinguish "command failed" from
-// "connection broke". Environment variables are injected as command-prefix
+// select on ctx.Done to support Terraform timeouts. Run returns a *RunError
+// for non-zero exit codes and a plain error for transport failures, letting
+// callers distinguish "command failed" from "connection broke" via errors.As.
+// Environment variables are injected as command-prefix
 // shell assignments rather than session.Setenv (which most sshd configs
 // reject via AcceptEnv).
 package ssh
@@ -76,12 +76,12 @@ func (m *Manager) Close() error {
 type AuthMethod = ssh.AuthMethod
 
 // PasswordAuth returns an AuthMethod that authenticates using the given password.
-func PasswordAuth(password string) ssh.AuthMethod {
+func PasswordAuth(password string) AuthMethod {
 	return ssh.Password(password)
 }
 
 // PrivateKeyAuth parses a PEM-encoded private key and returns an AuthMethod for public-key authentication.
-func PrivateKeyAuth(privateKey string) (ssh.AuthMethod, error) {
+func PrivateKeyAuth(privateKey string) (AuthMethod, error) {
 	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
 	if err != nil {
 		return nil, fmt.Errorf("parse private key: %w", err)
@@ -131,11 +131,13 @@ func (m *Manager) GetClient(ctx context.Context, host string, port int, user str
 	if err != nil {
 		return nil, fmt.Errorf("dial %s: %w", addr, err)
 	}
+
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("ssh handshake %s: %w", addr, err)
 	}
+
 	client := ssh.NewClient(sshConn, chans, reqs)
 
 	hostMax, err := probeMaxSessions(client)
@@ -197,6 +199,15 @@ type RunResult struct {
 	ExitCode int
 }
 
+type RunError struct {
+	RunResult
+	Command string
+}
+
+func (e *RunError) Error() string {
+	return fmt.Sprintf("run command %q: exit code %d: %s", e.Command, e.ExitCode, strings.TrimSpace(string(e.Stderr)))
+}
+
 // Run executes a single command on the host and returns its stdout, stderr,
 // and exit code.
 //
@@ -204,8 +215,9 @@ type RunResult struct {
 // immediately, which terminates the remote process. No PTY is allocated so
 // output stays deterministic for provisioning.
 //
-// Errors are returned only for transport/session failures. A non-zero exit
-// code is reported in RunResult.ExitCode without an error.
+// A non-zero exit code is returned as a *RunError (which implements error and
+// embeds RunResult). Transport/session failures are returned as plain errors.
+// Callers can use errors.AsType[*RunError](err) to distinguish the two.
 func (c *Client) Run(ctx context.Context, cmd string, env map[string]string, stdin io.Reader) (*RunResult, error) {
 	session, release, err := c.acquireSession(ctx)
 	if err != nil {
@@ -250,11 +262,20 @@ func (c *Client) Run(ctx context.Context, cmd string, env map[string]string, std
 		}
 	}
 
-	return &RunResult{
+	runResult := &RunResult{
 		Stdout:   stdout.Bytes(),
 		Stderr:   stderr.Bytes(),
 		ExitCode: exitCode,
-	}, nil
+	}
+
+	if exitCode != 0 {
+		return nil, &RunError{
+			RunResult: *runResult,
+			Command:   cmd,
+		}
+	}
+
+	return runResult, nil
 }
 
 // probeMaxSessions runs sshd -T on the host and parses MaxSessions.
