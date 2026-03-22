@@ -23,6 +23,7 @@ website/node_modules
 .idea
 *.iml
 *.test
+!scripts/Dockerfile.test
 *.iml
 example_*.go
 internal/provider/resource.go

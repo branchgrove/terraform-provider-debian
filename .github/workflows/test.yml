@@ -61,7 +61,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Terraform versions
         terraform:
           - '1.13.*'
           - '1.14.*'
@@ -76,7 +75,31 @@ jobs:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
       - run: go mod download
-      - env:
+      - name: Start Debian SSH container
+        run: |
+          ssh-keygen -t ed25519 -f /tmp/test_key -N "" -q
+          docker build -t debian-ssh -f scripts/Dockerfile.test scripts/
+          docker run -d --name debian-test debian-ssh
+          docker cp /tmp/test_key.pub debian-test:/root/.ssh/authorized_keys
+          docker exec debian-test chown root:root /root/.ssh/authorized_keys
+          docker exec debian-test chmod 600 /root/.ssh/authorized_keys
+
+          TEST_SSH_HOST=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' debian-test)
+          echo "TEST_SSH_HOST=$TEST_SSH_HOST" >> "$GITHUB_ENV"
+          echo "TEST_SSH_PUBLIC_KEY=$(cat /tmp/test_key.pub)" >> "$GITHUB_ENV"
+          echo "TEST_SSH_PRIVATE_KEY<<EOF" >> "$GITHUB_ENV"
+          cat /tmp/test_key >> "$GITHUB_ENV"
+          echo "EOF" >> "$GITHUB_ENV"
+
+          for i in $(seq 1 30); do
+            if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=2 -i /tmp/test_key "root@$TEST_SSH_HOST" true 2>/dev/null; then
+              echo "SSH is ready"
+              break
+            fi
+            sleep 1
+          done
+      - name: Run acceptance tests
+        env:
           TF_ACC: "1"
         run: go test -v -cover ./internal/provider/
         timeout-minutes: 10
