@@ -79,7 +79,7 @@ jobs:
         run: |
           ssh-keygen -t ed25519 -f /tmp/test_key -N "" -q
           docker build -t debian-ssh -f scripts/Dockerfile.test scripts/
-          docker run -d --name debian-test debian-ssh
+          docker run -d --name debian-test --privileged --cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw debian-ssh
           docker cp /tmp/test_key.pub debian-test:/root/.ssh/authorized_keys
           docker exec debian-test chown root:root /root/.ssh/authorized_keys
           docker exec debian-test chmod 600 /root/.ssh/authorized_keys
