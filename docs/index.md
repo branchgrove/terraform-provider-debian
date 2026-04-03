@@ -41,6 +41,7 @@ provider "debian" {
 | [debian_group](resources/group.md) | Manages a local group. |
 | [debian_group_member](resources/group_member.md) | Manages a single user-group membership. |
 | [debian_apt_packages](resources/apt_packages.md) | Manages a set of installed APT packages. |
+| [debian_systemd_service](resources/systemd_service.md) | Manages a systemd .service unit on the remote host. |
 
 ## Data Sources
 
