@@ -69,14 +69,14 @@ resource "debian_file" "app_config" {
 
 - `content` (String) Content of the file.
 - `path` (String) Absolute path to the file.
-- `ssh` (Attributes) SSH connection configuration. Authentication can be specified here or inherited from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
+- `ssh` (Attributes) SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
 
 ### Optional
 
 - `create_directories` (Boolean) Create parent directories if they don't exist. Defaults to `false`.
 - `gid` (Number) Numeric group ID of the file group. Conflicts with `group`.
 - `group` (String) Group of the file. Conflicts with `gid`.
-- `mode` (String) File permission mode, e.g. `0644`. Defaults to `0666` before umask is applied.
+- `mode` (String) File permission mode, for example, `0644`. Defaults to `0666` before umask is applied.
 - `owner` (String) Owner of the file. Conflicts with `uid`.
 - `uid` (Number) Numeric user ID of the file owner. Conflicts with `owner`.
 

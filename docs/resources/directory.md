@@ -58,14 +58,14 @@ resource "debian_directory" "shared" {
 ### Required
 
 - `path` (String) Absolute path to the directory.
-- `ssh` (Attributes) SSH connection configuration. Authentication can be specified here or inherited from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
+- `ssh` (Attributes) SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
 
 ### Optional
 
 - `create_parents` (Boolean) Create parent directories if they don't exist. Defaults to `false`.
 - `gid` (Number) Numeric group ID of the directory group. Conflicts with `group`.
 - `group` (String) Group of the directory. Conflicts with `gid`.
-- `mode` (String) Directory permission mode, e.g. `0755`. Defaults to `0755`.
+- `mode` (String) Directory permission mode, for example, `0755`. Defaults to `0755`.
 - `owner` (String) Owner of the directory. Conflicts with `uid`.
 - `uid` (Number) Numeric user ID of the directory owner. Conflicts with `owner`.
 

@@ -31,7 +31,7 @@ func (a *SystemctlReloadAction) Metadata(ctx context.Context, req action.Metadat
 
 func (a *SystemctlReloadAction) Schema(ctx context.Context, req action.SchemaRequest, resp *action.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "`debian_systemctl_reload` reloads a systemd service configuration.",
+		MarkdownDescription: "`debian_systemctl_reload` reloads a systemd unit configuration.",
 
 		Attributes: map[string]schema.Attribute{
 			"unit": schema.StringAttribute{

@@ -39,19 +39,19 @@ func (d *ReleaseDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "Distributor ID (e.g. `debian`).",
+				MarkdownDescription: "Distributor ID (for example, `debian`).",
 				Computed:            true,
 			},
 			"version_id": schema.StringAttribute{
-				MarkdownDescription: "Version number (e.g. `12`).",
+				MarkdownDescription: "Version number (for example, `12`).",
 				Computed:            true,
 			},
 			"version_codename": schema.StringAttribute{
-				MarkdownDescription: "Version codename (e.g. `bookworm`).",
+				MarkdownDescription: "Version codename (for example, `bookworm`).",
 				Computed:            true,
 			},
 			"pretty_name": schema.StringAttribute{
-				MarkdownDescription: "Human-readable name (e.g. `Debian GNU/Linux 12 (bookworm)`).",
+				MarkdownDescription: "Human-readable name (for example, `Debian GNU/Linux 12 (bookworm)`).",
 				Computed:            true,
 			},
 			"ssh": dataSourceConnectionSchema,

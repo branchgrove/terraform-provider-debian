@@ -31,7 +31,7 @@ func (a *SystemctlRestartAction) Metadata(ctx context.Context, req action.Metada
 
 func (a *SystemctlRestartAction) Schema(ctx context.Context, req action.SchemaRequest, resp *action.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "`debian_systemctl_restart` restarts a systemd service.",
+		MarkdownDescription: "`debian_systemctl_restart` restarts a systemd unit.",
 
 		Attributes: map[string]schema.Attribute{
 			"unit": schema.StringAttribute{

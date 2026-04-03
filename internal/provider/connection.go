@@ -98,7 +98,7 @@ func (c *ConnectionModel) resolveAuth(pd *ProviderData) (ssh.AuthMethod, error) 
 }
 
 var connectionSchema = schema.SingleNestedAttribute{
-	MarkdownDescription: "SSH connection configuration. Authentication can be specified here or inherited from the provider's `private_key` / `private_keys`.",
+	MarkdownDescription: "SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`.",
 	Required:            true,
 	Attributes: map[string]schema.Attribute{
 		"hostname": schema.StringAttribute{

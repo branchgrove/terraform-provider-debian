@@ -88,7 +88,7 @@ func (r *DirectoryResource) Schema(ctx context.Context, req resource.SchemaReque
 				},
 			},
 			"mode": schema.StringAttribute{
-				MarkdownDescription: "Directory permission mode, e.g. `0755`. Defaults to `0755`.",
+				MarkdownDescription: "Directory permission mode, for example, `0755`. Defaults to `0755`.",
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString("0755"),

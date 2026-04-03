@@ -40,7 +40,7 @@ resource "debian_group_member" "deploy_www" {
 ### Required
 
 - `group` (String) Group to add the user to. Changing this forces recreation.
-- `ssh` (Attributes) SSH connection configuration. Authentication can be specified here or inherited from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
+- `ssh` (Attributes) SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
 - `user` (String) Username to add to the group. Changing this forces recreation.
 
 <a id="nestedatt--ssh"></a>

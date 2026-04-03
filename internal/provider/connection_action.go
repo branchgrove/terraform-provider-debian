@@ -10,7 +10,7 @@ import (
 // actionConnectionSchema mirrors connectionSchema for actions. Actions have no
 // state so Computed and Sensitive are not available on action schema attributes.
 var actionConnectionSchema = schema.SingleNestedAttribute{
-	MarkdownDescription: "SSH connection configuration. Authentication can be specified here or inherited from the provider's `private_key` / `private_keys`.",
+	MarkdownDescription: "SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`.",
 	Required:            true,
 	Attributes: map[string]schema.Attribute{
 		"hostname": schema.StringAttribute{

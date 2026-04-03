@@ -35,7 +35,7 @@ action "debian_apt_upgrade" "dist" {
 
 ### Required
 
-- `ssh` (Attributes) SSH connection configuration. Authentication can be specified here or inherited from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
+- `ssh` (Attributes) SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
 
 ### Optional
 

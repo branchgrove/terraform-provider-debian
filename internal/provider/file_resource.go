@@ -102,7 +102,7 @@ func (r *FileResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				},
 			},
 			"mode": schema.StringAttribute{
-				MarkdownDescription: "File permission mode, e.g. `0644`. Defaults to `0666` before umask is applied.",
+				MarkdownDescription: "File permission mode, for example, `0644`. Defaults to `0666` before umask is applied.",
 				Optional:            true,
 				Computed:            true,
 				Default:             stringdefault.StaticString("0644"),

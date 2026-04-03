@@ -102,6 +102,7 @@ func (p *DebianProvider) Resources(ctx context.Context) []func() resource.Resour
 		NewGroupMemberResource,
 		NewAptPackagesResource,
 		NewSystemdServiceResource,
+		NewSystemdTimerResource,
 	}
 }
 

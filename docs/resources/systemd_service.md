@@ -20,7 +20,7 @@ description: |-
 - `active` (Boolean) Whether the service is running (`systemctl start` / `stop`).
 - `enabled` (Boolean) Whether the service is enabled (`systemctl enable` / `disable`).
 - `name` (String) Service unit name (without `.service` extension).
-- `ssh` (Attributes) SSH connection configuration. Authentication can be specified here or inherited from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
+- `ssh` (Attributes) SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
 
 ### Optional
 
@@ -77,8 +77,8 @@ Optional:
 - `remain_after_exit` (Boolean) `RemainAfterExit=` — stay active after main process exits.
 - `restart` (String) `Restart=` — `no`, `always`, `on-success`, `on-failure`, `on-abnormal`.
 - `restart_sec` (String) `RestartSec=` — delay before restart.
-- `standard_error` (String) `StandardError=` — where stderr goes.
-- `standard_output` (String) `StandardOutput=` — where stdout goes.
+- `standard_error` (String) `StandardError=` — Destination for standard error.
+- `standard_output` (String) `StandardOutput=` — Destination for standard output.
 - `timeout_start_sec` (String) `TimeoutStartSec=` — startup timeout.
 - `timeout_stop_sec` (String) `TimeoutStopSec=` — stop timeout.
 - `type` (String) `Type=` — `simple`, `exec`, `forking`, `oneshot`, `notify`, `idle`.
@@ -119,9 +119,9 @@ Optional:
 - `path_exists` (List of String) Paths that must exist. Prefix with `!` to negate.
 - `path_is_directory` (List of String) Paths that must be directories.
 - `path_is_symbolic_link` (List of String) Paths that must be symbolic links.
-- `security` (String) Security framework check (e.g. `selinux`, `apparmor`).
+- `security` (String) Security framework check (for example, `selinux`, `apparmor`).
 - `user` (String) User (name or UID) that systemd must be running as.
-- `virtualization` (String) Virtualization type check (e.g. `vm`, `container`, `!container`).
+- `virtualization` (String) Virtualization type check (for example, `vm`, `container`, `!container`).
 
 
 <a id="nestedatt--unit--condition"></a>
@@ -136,6 +136,6 @@ Optional:
 - `path_exists` (List of String) Paths that must exist. Prefix with `!` to negate.
 - `path_is_directory` (List of String) Paths that must be directories.
 - `path_is_symbolic_link` (List of String) Paths that must be symbolic links.
-- `security` (String) Security framework check (e.g. `selinux`, `apparmor`).
+- `security` (String) Security framework check (for example, `selinux`, `apparmor`).
 - `user` (String) User (name or UID) that systemd must be running as.
-- `virtualization` (String) Virtualization type check (e.g. `vm`, `container`, `!container`).
+- `virtualization` (String) Virtualization type check (for example, `vm`, `container`, `!container`).

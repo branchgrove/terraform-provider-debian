@@ -59,7 +59,7 @@ resource "debian_apt_packages" "monitoring" {
 ### Required
 
 - `packages` (Map of String) Map of package name to version constraint. Use `""` or `"*"` for latest available.
-- `ssh` (Attributes) SSH connection configuration. Authentication can be specified here or inherited from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
+- `ssh` (Attributes) SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
 
 ### Optional
 

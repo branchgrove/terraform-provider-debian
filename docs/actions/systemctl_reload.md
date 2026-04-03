@@ -3,12 +3,12 @@
 page_title: "debian_systemctl_reload Action - debian"
 subcategory: ""
 description: |-
-  debian_systemctl_reload reloads a systemd service configuration.
+  debian_systemctl_reload reloads a systemd unit configuration.
 ---
 
 # debian_systemctl_reload (Action)
 
-`debian_systemctl_reload` reloads a systemd service configuration.
+`debian_systemctl_reload` reloads a systemd unit configuration.
 
 ## Example Usage
 
@@ -28,7 +28,7 @@ action "debian_systemctl_reload" "nginx" {
 
 ### Required
 
-- `ssh` (Attributes) SSH connection configuration. Authentication can be specified here or inherited from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
+- `ssh` (Attributes) SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
 - `unit` (String) Systemd unit name.
 
 <a id="nestedatt--ssh"></a>

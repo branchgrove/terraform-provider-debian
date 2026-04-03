@@ -6,7 +6,7 @@ description: |-
 
 # Debian Provider
 
-The Debian provider manages files, directories, users, groups, packages, and services on remote Debian hosts over SSH.
+The Debian provider manages files, directories, users, groups, packages, services, and timers on remote Debian hosts over SSH.
 
 ## Per-Resource SSH Connections
 
@@ -42,6 +42,7 @@ provider "debian" {
 | [debian_group_member](resources/group_member.md) | Manages a single user-group membership. |
 | [debian_apt_packages](resources/apt_packages.md) | Manages a set of installed APT packages. |
 | [debian_systemd_service](resources/systemd_service.md) | Manages a systemd .service unit on the remote host. |
+| [debian_systemd_timer](resources/systemd_timer.md) | Manages a systemd .timer unit on the remote host. |
 
 ## Data Sources
 

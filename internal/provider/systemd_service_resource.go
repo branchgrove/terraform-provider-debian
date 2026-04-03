@@ -151,11 +151,11 @@ func (r *SystemdServiceResource) Schema(ctx context.Context, req resource.Schema
 			Optional:            true,
 		},
 		"virtualization": schema.StringAttribute{
-			MarkdownDescription: "Virtualization type check (e.g. `vm`, `container`, `!container`).",
+			MarkdownDescription: "Virtualization type check (for example, `vm`, `container`, `!container`).",
 			Optional:            true,
 		},
 		"security": schema.StringAttribute{
-			MarkdownDescription: "Security framework check (e.g. `selinux`, `apparmor`).",
+			MarkdownDescription: "Security framework check (for example, `selinux`, `apparmor`).",
 			Optional:            true,
 		},
 	}
@@ -317,11 +317,11 @@ func (r *SystemdServiceResource) Schema(ctx context.Context, req resource.Schema
 						Optional:            true,
 					},
 					"standard_output": schema.StringAttribute{
-						MarkdownDescription: "`StandardOutput=` — where stdout goes.",
+						MarkdownDescription: "`StandardOutput=` — Destination for standard output.",
 						Optional:            true,
 					},
 					"standard_error": schema.StringAttribute{
-						MarkdownDescription: "`StandardError=` — where stderr goes.",
+						MarkdownDescription: "`StandardError=` — Destination for standard error.",
 						Optional:            true,
 					},
 					"remain_after_exit": schema.BoolAttribute{

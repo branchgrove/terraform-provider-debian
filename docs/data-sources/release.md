@@ -30,14 +30,14 @@ output "debian_version" {
 
 ### Required
 
-- `ssh` (Attributes) SSH connection configuration. Authentication can be specified here or inherited from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
+- `ssh` (Attributes) SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
 
 ### Read-Only
 
-- `id` (String) Distributor ID (e.g. `debian`).
-- `pretty_name` (String) Human-readable name (e.g. `Debian GNU/Linux 12 (bookworm)`).
-- `version_codename` (String) Version codename (e.g. `bookworm`).
-- `version_id` (String) Version number (e.g. `12`).
+- `id` (String) Distributor ID (for example, `debian`).
+- `pretty_name` (String) Human-readable name (for example, `Debian GNU/Linux 12 (bookworm)`).
+- `version_codename` (String) Version codename (for example, `bookworm`).
+- `version_id` (String) Version number (for example, `12`).
 
 <a id="nestedatt--ssh"></a>
 ### Nested Schema for `ssh`
