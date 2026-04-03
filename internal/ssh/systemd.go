@@ -84,10 +84,39 @@ type InstallSection struct {
 	Extra      map[string]string
 }
 
+// TimerUnit represents a systemd .timer unit file as structured data.
+// It can be serialized to and deserialized from the standard INI format.
+type TimerUnit struct {
+	Unit    *UnitSection
+	Timer   *TimerSection
+	Install *InstallSection
+}
+
+// TimerSection represents the [Timer] section of a systemd timer unit file.
+type TimerSection struct {
+	OnCalendar         string
+	OnBootSec          string
+	OnStartupSec       string
+	OnUnitActiveSec    string
+	OnUnitInactiveSec  string
+	AccuracySec        string
+	RandomizedDelaySec string
+	Persistent         *bool
+	WakeSystem         *bool
+	Unit               string
+	Extra              map[string]string
+}
+
 // unitFilePath returns the path to the unit file for the named service under
 // /etc/systemd/system.
 func unitFilePath(name string) string {
 	return "/etc/systemd/system/" + name + ".service"
+}
+
+// timerUnitFilePath returns the path to the timer unit file for the named timer under
+// /etc/systemd/system.
+func timerUnitFilePath(name string) string {
+	return "/etc/systemd/system/" + name + ".timer"
 }
 
 // GetServiceState queries systemctl to determine whether the named service
@@ -224,6 +253,61 @@ func (c *Client) DeleteServiceUnit(ctx context.Context, name string) error {
 	return nil
 }
 
+// WriteTimerUnit writes a TimerUnit to /etc/systemd/system/<name>.timer
+// using PutFile for atomic writes.
+func (c *Client) WriteTimerUnit(ctx context.Context, name string, unit *TimerUnit) error {
+	content := unit.Serialize()
+	_, err := c.PutFile(ctx, &PutFileCommand{
+		Path:    timerUnitFilePath(name),
+		Content: strings.NewReader(content),
+		Mode:    "0644",
+	})
+	if err != nil {
+		return fmt.Errorf("write timer unit %q: %w", name, err)
+	}
+	return nil
+}
+
+// ReadTimerUnit reads and parses a TimerUnit from
+// /etc/systemd/system/<name>.timer. Returns ErrNotFound if the file does
+// not exist.
+func (c *Client) ReadTimerUnit(ctx context.Context, name string) (*TimerUnit, error) {
+	path := timerUnitFilePath(name)
+	content, err := c.ReadFile(ctx, path, 64*1024)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, fmt.Errorf("read timer unit %q: %w", name, ErrNotFound)
+		}
+		return nil, fmt.Errorf("read timer unit %q: %w", name, err)
+	}
+	unit := ParseTimerUnit(content)
+	return unit, nil
+}
+
+// TimerUnitExists checks whether a unit file exists at
+// /etc/systemd/system/<name>.timer.
+func (c *Client) TimerUnitExists(ctx context.Context, name string) (bool, error) {
+	env := map[string]string{"FILE": timerUnitFilePath(name)}
+	_, err := c.Run(ctx, `test -f "$FILE"`, env, nil)
+	if err != nil {
+		if _, ok := errors.AsType[*RunError](err); ok {
+			return false, nil
+		}
+		return false, fmt.Errorf("timer unit exists %q: %w", name, err)
+	}
+	return true, nil
+}
+
+// DeleteTimerUnit removes the unit file at
+// /etc/systemd/system/<name>.timer.
+func (c *Client) DeleteTimerUnit(ctx context.Context, name string) error {
+	err := c.DeleteFile(ctx, timerUnitFilePath(name))
+	if err != nil {
+		return fmt.Errorf("delete timer unit %q: %w", name, err)
+	}
+	return nil
+}
+
 // --------------------------------------------------------------------
 // Unit file serialization
 // --------------------------------------------------------------------
@@ -285,6 +369,26 @@ func (u *ServiceUnit) Serialize() string {
 	if u.Service != nil {
 		b.section("Service")
 		u.Service.serialize(&b)
+	}
+	if u.Install != nil {
+		b.section("Install")
+		u.Install.serialize(&b)
+	}
+
+	return b.buf.String()
+}
+
+// Serialize converts the TimerUnit to the systemd unit file INI format.
+func (u *TimerUnit) Serialize() string {
+	var b unitFileBuilder
+
+	if u.Unit != nil {
+		b.section("Unit")
+		u.Unit.serialize(&b)
+	}
+	if u.Timer != nil {
+		b.section("Timer")
+		u.Timer.serialize(&b)
 	}
 	if u.Install != nil {
 		b.section("Install")
@@ -370,6 +474,36 @@ func (s *ServiceSection) serialize(b *unitFileBuilder) {
 	b.writeMapSorted(s.Extra)
 }
 
+func (s *TimerSection) serialize(b *unitFileBuilder) {
+	b.writeString("OnCalendar", s.OnCalendar)
+	b.writeString("OnBootSec", s.OnBootSec)
+	b.writeString("OnStartupSec", s.OnStartupSec)
+	b.writeString("OnUnitActiveSec", s.OnUnitActiveSec)
+	b.writeString("OnUnitInactiveSec", s.OnUnitInactiveSec)
+	b.writeString("AccuracySec", s.AccuracySec)
+	b.writeString("RandomizedDelaySec", s.RandomizedDelaySec)
+
+	if s.Persistent != nil {
+		if *s.Persistent {
+			b.directive("Persistent", "yes")
+		} else {
+			b.directive("Persistent", "no")
+		}
+	}
+
+	if s.WakeSystem != nil {
+		if *s.WakeSystem {
+			b.directive("WakeSystem", "yes")
+		} else {
+			b.directive("WakeSystem", "no")
+		}
+	}
+
+	b.writeString("Unit", s.Unit)
+
+	b.writeMapSorted(s.Extra)
+}
+
 func (s *InstallSection) serialize(b *unitFileBuilder) {
 	b.writeList("WantedBy", s.WantedBy)
 	b.writeList("RequiredBy", s.RequiredBy)
@@ -425,6 +559,25 @@ func ParseServiceUnit(content string) *ServiceUnit {
 	}
 	if directives, ok := sections["Service"]; ok && len(directives) > 0 {
 		u.Service = parseServiceSection(directives)
+	}
+	if directives, ok := sections["Install"]; ok && len(directives) > 0 {
+		u.Install = parseInstallSection(directives)
+	}
+
+	return u
+}
+
+// ParseTimerUnit parses a systemd timer unit file string into a TimerUnit.
+func ParseTimerUnit(content string) *TimerUnit {
+	contentStr := parseUnitFile(content)
+	sections := contentStr
+	u := &TimerUnit{}
+
+	if directives, ok := sections["Unit"]; ok && len(directives) > 0 {
+		u.Unit = parseUnitSection(directives)
+	}
+	if directives, ok := sections["Timer"]; ok && len(directives) > 0 {
+		u.Timer = parseTimerSection(directives)
 	}
 	if directives, ok := sections["Install"]; ok && len(directives) > 0 {
 		u.Install = parseInstallSection(directives)
@@ -574,6 +727,46 @@ func parseServiceSection(directives []unitDirective) *ServiceSection {
 		case "RemainAfterExit":
 			val := parseBoolDirective(d.Value)
 			s.RemainAfterExit = &val
+		default:
+			extra[d.Name] = d.Value
+		}
+	}
+
+	if len(extra) > 0 {
+		s.Extra = extra
+	}
+
+	return s
+}
+
+func parseTimerSection(directives []unitDirective) *TimerSection {
+	s := &TimerSection{}
+	extra := map[string]string{}
+
+	for _, d := range directives {
+		switch d.Name {
+		case "OnCalendar":
+			s.OnCalendar = d.Value
+		case "OnBootSec":
+			s.OnBootSec = d.Value
+		case "OnStartupSec":
+			s.OnStartupSec = d.Value
+		case "OnUnitActiveSec":
+			s.OnUnitActiveSec = d.Value
+		case "OnUnitInactiveSec":
+			s.OnUnitInactiveSec = d.Value
+		case "AccuracySec":
+			s.AccuracySec = d.Value
+		case "RandomizedDelaySec":
+			s.RandomizedDelaySec = d.Value
+		case "Persistent":
+			val := parseBoolDirective(d.Value)
+			s.Persistent = &val
+		case "WakeSystem":
+			val := parseBoolDirective(d.Value)
+			s.WakeSystem = &val
+		case "Unit":
+			s.Unit = d.Value
 		default:
 			extra[d.Name] = d.Value
 		}
