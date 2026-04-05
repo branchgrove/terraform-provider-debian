@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -824,6 +825,94 @@ func TestStartStopRestartService(t *testing.T) {
 		state, err := client.GetServiceState(ctx, name)
 		require.NoError(t, err)
 		assert.False(t, state.Active)
+	})
+}
+
+func TestWaitServiceActive(t *testing.T) {
+	client := testClient(t)
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		name := "tf-test-wait-success"
+		remainAfterExit := true
+		t.Cleanup(func() {
+			client.StopService(ctx, name)
+			client.DeleteServiceUnit(ctx, name)
+			client.DaemonReload(ctx)
+		})
+
+		err := client.WriteServiceUnit(ctx, name, &ServiceUnit{
+			Unit: &UnitSection{
+				Description: "Wait success test",
+			},
+			Service: &ServiceSection{
+				Type:            "oneshot",
+				ExecStart:       "/bin/true",
+				RemainAfterExit: &remainAfterExit,
+			},
+		})
+		require.NoError(t, err)
+		require.NoError(t, client.DaemonReload(ctx))
+		require.NoError(t, client.StartService(ctx, name))
+
+		err = client.WaitServiceActive(ctx, name, 10*time.Second)
+		require.NoError(t, err)
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		name := "tf-test-wait-failure"
+		t.Cleanup(func() {
+			client.StopService(ctx, name)
+			client.DeleteServiceUnit(ctx, name)
+			client.DaemonReload(ctx)
+		})
+
+		err := client.WriteServiceUnit(ctx, name, &ServiceUnit{
+			Unit: &UnitSection{
+				Description: "Wait failure test",
+			},
+			Service: &ServiceSection{
+				Type:      "simple",
+				ExecStart: "/bin/false",
+			},
+		})
+		require.NoError(t, err)
+		require.NoError(t, client.DaemonReload(ctx))
+
+		// Use bash tool to start service to avoid StartService returning error if it fails synchronously
+		// Actually, for Type=simple, StartService does not wait, it will succeed, and then it will fail
+		require.NoError(t, client.StartService(ctx, name))
+
+		err = client.WaitServiceActive(ctx, name, 10*time.Second)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to start")
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		name := "tf-test-wait-timeout"
+		t.Cleanup(func() {
+			client.StopService(ctx, name)
+			client.DeleteServiceUnit(ctx, name)
+			client.DaemonReload(ctx)
+		})
+
+		err := client.WriteServiceUnit(ctx, name, &ServiceUnit{
+			Unit: &UnitSection{
+				Description: "Wait timeout test",
+			},
+			Service: &ServiceSection{
+				Type:      "notify",
+				ExecStart: "/bin/sleep 10",
+			},
+		})
+		require.NoError(t, err)
+		require.NoError(t, client.DaemonReload(ctx))
+		_, err = client.Run(ctx, fmt.Sprintf("systemctl start --no-block %s", name), nil, nil)
+		require.NoError(t, err)
+
+		err = client.WaitServiceActive(ctx, name, 500*time.Millisecond)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timeout waiting for service")
 	})
 }
 

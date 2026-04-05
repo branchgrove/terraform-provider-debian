@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/branchgrove/terraform-provider-debian/internal/ssh"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -35,14 +37,15 @@ type SystemdTimerResource struct {
 // --------------------------------------------------------------------
 
 type SystemdTimerResourceModel struct {
-	Name       types.String                `tfsdk:"name"`
-	Enabled    types.Bool                  `tfsdk:"enabled"`
-	Active     types.Bool                  `tfsdk:"active"`
-	Unit       *SystemdUnitSectionModel    `tfsdk:"unit"`
-	Timer      *SystemdTimerSectionModel   `tfsdk:"timer"`
-	Install    *SystemdInstallSectionModel `tfsdk:"install"`
-	Overwrite  types.Bool                  `tfsdk:"overwrite"`
-	Connection ConnectionModel             `tfsdk:"ssh"`
+	Name          types.String                `tfsdk:"name"`
+	Enabled       types.Bool                  `tfsdk:"enabled"`
+	Active        types.Bool                  `tfsdk:"active"`
+	ActiveTimeout types.Int64                 `tfsdk:"active_timeout"`
+	Unit          *SystemdUnitSectionModel    `tfsdk:"unit"`
+	Timer         *SystemdTimerSectionModel   `tfsdk:"timer"`
+	Install       *SystemdInstallSectionModel `tfsdk:"install"`
+	Overwrite     types.Bool                  `tfsdk:"overwrite"`
+	Connection    ConnectionModel             `tfsdk:"ssh"`
 }
 
 type SystemdTimerSectionModel struct {
@@ -134,6 +137,12 @@ func (r *SystemdTimerResource) Schema(ctx context.Context, req resource.SchemaRe
 			"active": schema.BoolAttribute{
 				MarkdownDescription: "Whether the timer is armed (`systemctl start` / `stop`).",
 				Required:            true,
+			},
+			"active_timeout": schema.Int64Attribute{
+				MarkdownDescription: "Timeout in seconds to wait for the timer to become active. Defaults to 15.",
+				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(15),
 			},
 			"unit": schema.SingleNestedAttribute{
 				MarkdownDescription: "`[Unit]` section. Optional.",
@@ -405,6 +414,11 @@ func (r *SystemdTimerResource) Create(ctx context.Context, req resource.CreateRe
 			resp.Diagnostics.AddError("Failed to start timer", err.Error())
 			return
 		}
+		timeout := time.Duration(data.ActiveTimeout.ValueInt64()) * time.Second
+		if err := client.WaitServiceActive(ctx, name+".timer", timeout); err != nil {
+			resp.Diagnostics.AddError("Failed to wait for timer to become active", err.Error())
+			return
+		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -518,6 +532,11 @@ func (r *SystemdTimerResource) Update(ctx context.Context, req resource.UpdateRe
 				resp.Diagnostics.AddError("Failed to start timer", err.Error())
 				return
 			}
+			timeout := time.Duration(plan.ActiveTimeout.ValueInt64()) * time.Second
+			if err := client.WaitServiceActive(ctx, name+".timer", timeout); err != nil {
+				resp.Diagnostics.AddError("Failed to wait for timer to become active", err.Error())
+				return
+			}
 		} else {
 			if err := client.StopService(ctx, name+".timer"); err != nil {
 				resp.Diagnostics.AddError("Failed to stop timer", err.Error())
@@ -527,6 +546,11 @@ func (r *SystemdTimerResource) Update(ctx context.Context, req resource.UpdateRe
 	} else if unitFileChanged && plan.Active.ValueBool() {
 		if err := client.RestartService(ctx, name+".timer"); err != nil {
 			resp.Diagnostics.AddError("Failed to restart timer", err.Error())
+			return
+		}
+		timeout := time.Duration(plan.ActiveTimeout.ValueInt64()) * time.Second
+		if err := client.WaitServiceActive(ctx, name+".timer", timeout); err != nil {
+			resp.Diagnostics.AddError("Failed to wait for timer to become active after restart", err.Error())
 			return
 		}
 	}

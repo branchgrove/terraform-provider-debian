@@ -111,7 +111,7 @@ func TestAccSystemdTimerResource_importState(t *testing.T) {
 				ImportStateId:                        testImportID("tf-acc-timer-import"),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "name",
-				ImportStateVerifyIgnore:              []string{"overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
+				ImportStateVerifyIgnore:              []string{"overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key", "active_timeout"},
 			},
 		},
 	})

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 )
 
 // ServiceState holds the enabled and active state of a systemd service.
@@ -167,6 +168,57 @@ func (c *Client) StartService(ctx context.Context, name string) error {
 		return fmt.Errorf("start service %q: %w", name, err)
 	}
 	return nil
+}
+
+// WaitServiceActive waits for the named service to become active by polling its state.
+// It returns an error if the service fails to start or times out.
+func (c *Client) WaitServiceActive(ctx context.Context, name string, timeout time.Duration) error {
+	// Short delay to catch immediate crashes of Type=simple services
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(1 * time.Second):
+	}
+
+	deadline := time.Now().Add(timeout)
+	env := map[string]string{"NAME": name}
+
+	for time.Now().Before(deadline) {
+		res, err := c.Run(ctx, `systemctl show -p ActiveState "$NAME" | cut -d= -f2`, env, nil)
+		if err != nil {
+			return fmt.Errorf("wait service active %q: check state failed: %w", name, err)
+		}
+
+		state := strings.TrimSpace(string(res.Stdout))
+		switch state {
+		case "failed":
+			statusRes, err := c.Run(ctx, `systemctl status "$NAME"`, env, nil)
+			var stdout, stderr string
+			if err != nil {
+				if runErr, ok := err.(*RunError); ok {
+					stdout = string(runErr.Stdout)
+					stderr = string(runErr.Stderr)
+				} else {
+					return fmt.Errorf("service %q failed to start, and failed to get status: %w", name, err)
+				}
+			} else {
+				stdout = string(statusRes.Stdout)
+				stderr = string(statusRes.Stderr)
+			}
+			logs := strings.TrimSpace(stderr + "\n" + stdout)
+			return fmt.Errorf("service %q failed to start:\n%s", name, logs)
+		case "active", "inactive":
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(1 * time.Second):
+		}
+	}
+
+	return fmt.Errorf("timeout waiting for service %q to become active", name)
 }
 
 // StopService runs systemctl stop for the named service.

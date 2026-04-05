@@ -24,6 +24,7 @@ description: |-
 
 ### Optional
 
+- `active_timeout` (Number) Timeout in seconds to wait for the service to become active. Defaults to 15.
 - `install` (Attributes) `[Install]` section. Optional — omit for package-installed services. (see [below for nested schema](#nestedatt--install))
 - `overwrite` (Boolean) Overwrite the resource if it already exists. Defaults to `false`.
 - `service` (Attributes) `[Service]` section. Optional — omit for package-installed services. (see [below for nested schema](#nestedatt--service))

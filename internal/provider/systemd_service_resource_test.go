@@ -111,7 +111,7 @@ func TestAccSystemdServiceResource_importState(t *testing.T) {
 				ImportStateId:                        testImportID("tf-acc-import"),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "name",
-				ImportStateVerifyIgnore:              []string{"overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
+				ImportStateVerifyIgnore:              []string{"overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key", "active_timeout"},
 			},
 		},
 	})
@@ -198,7 +198,7 @@ func TestAccSystemdServiceResource_packageInstalledImport(t *testing.T) {
 				ImportStateId:                        testImportID("cron"),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "name",
-				ImportStateVerifyIgnore:              []string{"overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
+				ImportStateVerifyIgnore:              []string{"overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key", "active_timeout"},
 			},
 		},
 	})

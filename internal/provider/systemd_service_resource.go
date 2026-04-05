@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/branchgrove/terraform-provider-debian/internal/ssh"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -33,14 +35,15 @@ type SystemdServiceResource struct {
 // --------------------------------------------------------------------
 
 type SystemdServiceResourceModel struct {
-	Name       types.String                `tfsdk:"name"`
-	Enabled    types.Bool                  `tfsdk:"enabled"`
-	Active     types.Bool                  `tfsdk:"active"`
-	Unit       *SystemdUnitSectionModel    `tfsdk:"unit"`
-	Service    *SystemdServiceSectionModel `tfsdk:"service"`
-	Install    *SystemdInstallSectionModel `tfsdk:"install"`
-	Overwrite  types.Bool                  `tfsdk:"overwrite"`
-	Connection ConnectionModel             `tfsdk:"ssh"`
+	Name          types.String                `tfsdk:"name"`
+	Enabled       types.Bool                  `tfsdk:"enabled"`
+	Active        types.Bool                  `tfsdk:"active"`
+	ActiveTimeout types.Int64                 `tfsdk:"active_timeout"`
+	Unit          *SystemdUnitSectionModel    `tfsdk:"unit"`
+	Service       *SystemdServiceSectionModel `tfsdk:"service"`
+	Install       *SystemdInstallSectionModel `tfsdk:"install"`
+	Overwrite     types.Bool                  `tfsdk:"overwrite"`
+	Connection    ConnectionModel             `tfsdk:"ssh"`
 }
 
 func (m *SystemdServiceResourceModel) ownsUnitFile() bool {
@@ -180,6 +183,12 @@ func (r *SystemdServiceResource) Schema(ctx context.Context, req resource.Schema
 			"active": schema.BoolAttribute{
 				MarkdownDescription: "Whether the service is running (`systemctl start` / `stop`).",
 				Required:            true,
+			},
+			"active_timeout": schema.Int64Attribute{
+				MarkdownDescription: "Timeout in seconds to wait for the service to become active. Defaults to 15.",
+				Optional:            true,
+				Computed:            true,
+				Default:             int64default.StaticInt64(15),
 			},
 			"unit": schema.SingleNestedAttribute{
 				MarkdownDescription: "`[Unit]` section. Optional — omit for package-installed services.",
@@ -452,6 +461,11 @@ func (r *SystemdServiceResource) Create(ctx context.Context, req resource.Create
 			resp.Diagnostics.AddError("Failed to start service", err.Error())
 			return
 		}
+		timeout := time.Duration(data.ActiveTimeout.ValueInt64()) * time.Second
+		if err := client.WaitServiceActive(ctx, name, timeout); err != nil {
+			resp.Diagnostics.AddError("Failed to wait for service to become active", err.Error())
+			return
+		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -599,6 +613,11 @@ func (r *SystemdServiceResource) Update(ctx context.Context, req resource.Update
 				resp.Diagnostics.AddError("Failed to start service", err.Error())
 				return
 			}
+			timeout := time.Duration(plan.ActiveTimeout.ValueInt64()) * time.Second
+			if err := client.WaitServiceActive(ctx, name, timeout); err != nil {
+				resp.Diagnostics.AddError("Failed to wait for service to become active", err.Error())
+				return
+			}
 		} else {
 			if err := client.StopService(ctx, name); err != nil {
 				resp.Diagnostics.AddError("Failed to stop service", err.Error())
@@ -608,6 +627,11 @@ func (r *SystemdServiceResource) Update(ctx context.Context, req resource.Update
 	} else if unitFileChanged && plan.Active.ValueBool() {
 		if err := client.RestartService(ctx, name); err != nil {
 			resp.Diagnostics.AddError("Failed to restart service", err.Error())
+			return
+		}
+		timeout := time.Duration(plan.ActiveTimeout.ValueInt64()) * time.Second
+		if err := client.WaitServiceActive(ctx, name, timeout); err != nil {
+			resp.Diagnostics.AddError("Failed to wait for service to become active after restart", err.Error())
 			return
 		}
 	}
