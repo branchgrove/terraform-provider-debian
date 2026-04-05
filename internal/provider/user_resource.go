@@ -41,6 +41,7 @@ type UserResourceModel struct {
 	System     types.Bool      `tfsdk:"system"`
 	CreateHome types.Bool      `tfsdk:"create_home"`
 	Groups     types.Set       `tfsdk:"groups"`
+	Overwrite  types.Bool      `tfsdk:"overwrite"`
 	Connection ConnectionModel `tfsdk:"ssh"`
 }
 
@@ -111,6 +112,12 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Optional:            true,
 				ElementType:         types.StringType,
 			},
+			"overwrite": schema.BoolAttribute{
+				MarkdownDescription: "Overwrite the user if it already exists. Defaults to `false`.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+			},
 			"ssh": connectionSchema,
 		},
 	}
@@ -147,42 +154,91 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	cmd := &ssh.CreateUserCommand{
-		Name:   data.Name.ValueString(),
-		System: data.System.ValueBool(),
-	}
-	if !data.UID.IsNull() && !data.UID.IsUnknown() {
-		uid := int(data.UID.ValueInt64())
-		cmd.UID = &uid
-	}
-	if !data.GID.IsNull() && !data.GID.IsUnknown() {
-		gid := int(data.GID.ValueInt64())
-		cmd.GID = &gid
-	} else if !data.Group.IsNull() && !data.Group.IsUnknown() {
-		cmd.Group = data.Group.ValueString()
-	}
-	if !data.Home.IsNull() && !data.Home.IsUnknown() {
-		cmd.Home = data.Home.ValueString()
-	}
-	if !data.Shell.IsNull() && !data.Shell.IsUnknown() {
-		cmd.Shell = data.Shell.ValueString()
-	}
-	createHome := data.CreateHome.ValueBool()
-	cmd.CreateHome = &createHome
-
-	if !data.Groups.IsNull() {
-		var groups []string
-		resp.Diagnostics.Append(data.Groups.ElementsAs(ctx, &groups, false)...)
-		if resp.Diagnostics.HasError() {
+	_, err = client.GetUser(ctx, data.Name.ValueString())
+	exists := err == nil
+	if exists {
+		if !data.Overwrite.ValueBool() {
+			resp.Diagnostics.AddError("Resource already exists", "The user already exists and overwrite is false")
 			return
 		}
-		cmd.Groups = groups
+	} else if !errors.Is(err, ssh.ErrNotFound) {
+		resp.Diagnostics.AddError("Failed to check if user exists", err.Error())
+		return
 	}
 
-	user, err := client.CreateUser(ctx, cmd)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to create user", err.Error())
-		return
+	var user *ssh.User
+	if exists {
+		cmd := &ssh.UpdateUserCommand{
+			Name: data.Name.ValueString(),
+		}
+		if !data.UID.IsNull() && !data.UID.IsUnknown() {
+			uid := int(data.UID.ValueInt64())
+			cmd.UID = &uid
+		}
+		if !data.GID.IsNull() && !data.GID.IsUnknown() {
+			gid := int(data.GID.ValueInt64())
+			cmd.GID = &gid
+		} else if !data.Group.IsNull() && !data.Group.IsUnknown() {
+			cmd.Group = data.Group.ValueString()
+		}
+		if !data.Home.IsNull() && !data.Home.IsUnknown() {
+			cmd.Home = data.Home.ValueString()
+		}
+		if !data.Shell.IsNull() && !data.Shell.IsUnknown() {
+			cmd.Shell = data.Shell.ValueString()
+		}
+		if !data.Groups.IsNull() {
+			var groups []string
+			resp.Diagnostics.Append(data.Groups.ElementsAs(ctx, &groups, false)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			cmd.Groups = &groups
+		}
+
+		user, err = client.UpdateUser(ctx, cmd)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to update existing user", err.Error())
+			return
+		}
+	} else {
+		cmd := &ssh.CreateUserCommand{
+			Name:   data.Name.ValueString(),
+			System: data.System.ValueBool(),
+		}
+		if !data.UID.IsNull() && !data.UID.IsUnknown() {
+			uid := int(data.UID.ValueInt64())
+			cmd.UID = &uid
+		}
+		if !data.GID.IsNull() && !data.GID.IsUnknown() {
+			gid := int(data.GID.ValueInt64())
+			cmd.GID = &gid
+		} else if !data.Group.IsNull() && !data.Group.IsUnknown() {
+			cmd.Group = data.Group.ValueString()
+		}
+		if !data.Home.IsNull() && !data.Home.IsUnknown() {
+			cmd.Home = data.Home.ValueString()
+		}
+		if !data.Shell.IsNull() && !data.Shell.IsUnknown() {
+			cmd.Shell = data.Shell.ValueString()
+		}
+		createHome := data.CreateHome.ValueBool()
+		cmd.CreateHome = &createHome
+
+		if !data.Groups.IsNull() {
+			var groups []string
+			resp.Diagnostics.Append(data.Groups.ElementsAs(ctx, &groups, false)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			cmd.Groups = groups
+		}
+
+		user, err = client.CreateUser(ctx, cmd)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to create user", err.Error())
+			return
+		}
 	}
 
 	data.applyUserState(ctx, user, &resp.Diagnostics)

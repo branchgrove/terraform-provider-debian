@@ -55,6 +55,7 @@ resource "debian_group" "developers" {
 ### Optional
 
 - `gid` (Number) Numeric group ID. If omitted, the system assigns one.
+- `overwrite` (Boolean) Overwrite the group if it already exists. Defaults to `false`.
 - `system` (Boolean) Create as system group. Defaults to `false`. Changing this forces recreation.
 - `users` (Set of String) Members of this group. Overwrites the full member list. When null, membership is not managed.
 

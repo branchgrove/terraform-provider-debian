@@ -26,6 +26,7 @@ description: |-
 ### Optional
 
 - `install` (Attributes) `[Install]` section. Optional. (see [below for nested schema](#nestedatt--install))
+- `overwrite` (Boolean) Overwrite the resource if it already exists. Defaults to `false`.
 - `unit` (Attributes) `[Unit]` section. Optional. (see [below for nested schema](#nestedatt--unit))
 
 <a id="nestedatt--ssh"></a>

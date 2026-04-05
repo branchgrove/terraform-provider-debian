@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -78,7 +79,7 @@ func TestAccFileResource_importState(t *testing.T) {
 				ImportStateId:                        testImportID(filePath),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "path",
-				ImportStateVerifyIgnore:              []string{"content", "create_directories", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
+				ImportStateVerifyIgnore:              []string{"content", "create_directories", "overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
 			},
 		},
 	})
@@ -99,7 +100,7 @@ func TestAccFileResource_importStateWithKey(t *testing.T) {
 				ImportStateId:                        testImportIDWithKey(filePath),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "path",
-				ImportStateVerifyIgnore:              []string{"content", "create_directories", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
+				ImportStateVerifyIgnore:              []string{"content", "create_directories", "overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
 			},
 		},
 	})
@@ -230,4 +231,38 @@ resource "debian_file" "test" {
 %[4]s
 }
 `, path, content, mode, testSSHBlockWithPublicKey())
+}
+
+func TestAccFileResource_overwrite(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccFileConfigOverwrite("/tmp/tf_acc_file_overwrite", false),
+				ExpectError: regexp.MustCompile("Resource already exists"),
+			},
+			{
+				Config: testAccFileConfigOverwrite("/tmp/tf_acc_file_overwrite", true),
+			},
+		},
+	})
+}
+
+func testAccFileConfigOverwrite(path string, overwrite bool) string {
+	return testProviderBlock() + fmt.Sprintf(`
+resource "debian_file" "setup" {
+  path    = %[1]q
+  content = "setup"
+%[3]s
+}
+
+resource "debian_file" "test" {
+  path       = %[1]q
+  content    = "setup"
+  overwrite  = %[2]t
+  depends_on = [debian_file.setup]
+%[3]s
+}
+`, path, overwrite, testSSHBlock())
 }

@@ -184,10 +184,19 @@ func (c *Client) UpdateDirectory(ctx context.Context, cmd *MakeDirectoryCommand)
 func (c *Client) DeleteDirectory(ctx context.Context, dirPath string) error {
 	env := map[string]string{"DIR": dirPath}
 
-	_, err := c.Run(ctx, `test -d "$DIR"`, env, nil)
+	_, err := c.Run(ctx, `test -e "$DIR"`, env, nil)
 	if err != nil {
 		if _, ok := errors.AsType[*RunError](err); ok {
-			return fmt.Errorf("delete directory: %q does not exist or is not a directory", dirPath)
+			// Does not exist, consider it already deleted
+			return nil
+		}
+		return fmt.Errorf("delete directory: check existence: %w", err)
+	}
+
+	_, err = c.Run(ctx, `test -d "$DIR"`, env, nil)
+	if err != nil {
+		if _, ok := errors.AsType[*RunError](err); ok {
+			return fmt.Errorf("delete directory: %q is not a directory", dirPath)
 		}
 		return fmt.Errorf("delete directory: %w", err)
 	}

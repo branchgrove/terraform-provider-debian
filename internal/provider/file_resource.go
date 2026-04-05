@@ -48,6 +48,7 @@ type FileResourceModel struct {
 	Dirname           types.String    `tfsdk:"dirname"`
 	SHA256            types.String    `tfsdk:"sha256"`
 	Size              types.Int64     `tfsdk:"size"`
+	Overwrite         types.Bool      `tfsdk:"overwrite"`
 	Connection        ConnectionModel `tfsdk:"ssh"`
 }
 
@@ -129,6 +130,12 @@ func (r *FileResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				MarkdownDescription: "Size of the file in bytes.",
 				Computed:            true,
 			},
+			"overwrite": schema.BoolAttribute{
+				MarkdownDescription: "Overwrite the file if it already exists. Defaults to `false`.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+			},
 			"ssh": connectionSchema,
 		},
 	}
@@ -162,6 +169,17 @@ func (r *FileResource) Create(ctx context.Context, req resource.CreateRequest, r
 	client, err := data.Connection.GetClient(ctx, r.providerData)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get SSH client", err.Error())
+		return
+	}
+
+	_, err = client.GetFile(ctx, data.Path.ValueString())
+	if err == nil {
+		if !data.Overwrite.ValueBool() {
+			resp.Diagnostics.AddError("Resource already exists", "The file already exists and overwrite is false")
+			return
+		}
+	} else if !errors.Is(err, ssh.ErrNotFound) {
+		resp.Diagnostics.AddError("Failed to check if file exists", err.Error())
 		return
 	}
 

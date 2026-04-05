@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -42,6 +43,7 @@ func TestAccGroupMemberResource_importState(t *testing.T) {
 				ImportStateId:                        testImportID("tfmemuser2:tfmemgrp2"),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "user",
+				ImportStateVerifyIgnore:              []string{"overwrite"},
 			},
 		},
 	})
@@ -67,4 +69,48 @@ resource "debian_group_member" "test" {
 %[3]s
 }
 `, userName, groupName, testSSHBlock())
+}
+
+func TestAccGroupMemberResource_overwrite(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccGroupMemberConfigOverwrite("tfmemuser_ow", "tfmemgrp_ow", false),
+				ExpectError: regexp.MustCompile("Resource already exists"),
+			},
+			{
+				Config: testAccGroupMemberConfigOverwrite("tfmemuser_ow", "tfmemgrp_ow", true),
+			},
+		},
+	})
+}
+
+func testAccGroupMemberConfigOverwrite(userName, groupName string, overwrite bool) string {
+	return testProviderBlock() + fmt.Sprintf(`
+resource "debian_user" "setup" {
+  name = %[1]q
+%[4]s
+}
+
+resource "debian_group" "setup" {
+  name = %[2]q
+%[4]s
+}
+
+resource "debian_group_member" "setup" {
+  user  = debian_user.setup.name
+  group = debian_group.setup.name
+%[4]s
+}
+
+resource "debian_group_member" "test" {
+  user       = debian_user.setup.name
+  group      = debian_group.setup.name
+  overwrite  = %[3]t
+  depends_on = [debian_group_member.setup]
+%[4]s
+}
+`, userName, groupName, overwrite, testSSHBlock())
 }

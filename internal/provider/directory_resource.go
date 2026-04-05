@@ -39,6 +39,7 @@ type DirectoryResourceModel struct {
 	GID           types.Int64     `tfsdk:"gid"`
 	Basename      types.String    `tfsdk:"basename"`
 	Dirname       types.String    `tfsdk:"dirname"`
+	Overwrite     types.Bool      `tfsdk:"overwrite"`
 	Connection    ConnectionModel `tfsdk:"ssh"`
 }
 
@@ -107,6 +108,12 @@ func (r *DirectoryResource) Schema(ctx context.Context, req resource.SchemaReque
 				MarkdownDescription: "Parent directory path.",
 				Computed:            true,
 			},
+			"overwrite": schema.BoolAttribute{
+				MarkdownDescription: "Overwrite the directory if it already exists. Defaults to `false`.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+			},
 			"ssh": connectionSchema,
 		},
 	}
@@ -143,10 +150,31 @@ func (r *DirectoryResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	dir, err := client.MakeDirectory(ctx, data.toMakeDirectoryCommand())
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to create directory", err.Error())
+	_, err = client.GetDirectory(ctx, data.Path.ValueString())
+	exists := err == nil
+	if exists {
+		if !data.Overwrite.ValueBool() {
+			resp.Diagnostics.AddError("Resource already exists", "The directory already exists and overwrite is false")
+			return
+		}
+	} else if !errors.Is(err, ssh.ErrNotFound) {
+		resp.Diagnostics.AddError("Failed to check if directory exists", err.Error())
 		return
+	}
+
+	var dir *ssh.Directory
+	if exists {
+		dir, err = client.UpdateDirectory(ctx, data.toMakeDirectoryCommand())
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to update existing directory", err.Error())
+			return
+		}
+	} else {
+		dir, err = client.MakeDirectory(ctx, data.toMakeDirectoryCommand())
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to create directory", err.Error())
+			return
+		}
 	}
 
 	data.applyDirectoryState(dir)

@@ -34,6 +34,7 @@ type GroupResourceModel struct {
 	GID        types.Int64     `tfsdk:"gid"`
 	System     types.Bool      `tfsdk:"system"`
 	Users      types.Set       `tfsdk:"users"`
+	Overwrite  types.Bool      `tfsdk:"overwrite"`
 	Connection ConnectionModel `tfsdk:"ssh"`
 }
 
@@ -72,6 +73,12 @@ func (r *GroupResource) Schema(ctx context.Context, req resource.SchemaRequest, 
 				Optional:            true,
 				ElementType:         types.StringType,
 			},
+			"overwrite": schema.BoolAttribute{
+				MarkdownDescription: "Overwrite the group if it already exists. Defaults to `false`.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+			},
 			"ssh": connectionSchema,
 		},
 	}
@@ -108,19 +115,45 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
-	cmd := &ssh.CreateGroupCommand{
-		Name:   data.Name.ValueString(),
-		System: data.System.ValueBool(),
-	}
-	if !data.GID.IsNull() && !data.GID.IsUnknown() {
-		gid := int(data.GID.ValueInt64())
-		cmd.GID = &gid
+	_, err = client.GetGroup(ctx, data.Name.ValueString())
+	exists := err == nil
+	if exists {
+		if !data.Overwrite.ValueBool() {
+			resp.Diagnostics.AddError("Resource already exists", "The group already exists and overwrite is false")
+			return
+		}
+	} else if !errors.Is(err, ssh.ErrNotFound) {
+		resp.Diagnostics.AddError("Failed to check if group exists", err.Error())
+		return
 	}
 
-	group, err := client.CreateGroup(ctx, cmd)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to create group", err.Error())
-		return
+	var group *ssh.Group
+	if exists {
+		var gid *int
+		if !data.GID.IsNull() && !data.GID.IsUnknown() {
+			g := int(data.GID.ValueInt64())
+			gid = &g
+		}
+		group, err = client.UpdateGroup(ctx, data.Name.ValueString(), gid)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to update existing group", err.Error())
+			return
+		}
+	} else {
+		cmd := &ssh.CreateGroupCommand{
+			Name:   data.Name.ValueString(),
+			System: data.System.ValueBool(),
+		}
+		if !data.GID.IsNull() && !data.GID.IsUnknown() {
+			gid := int(data.GID.ValueInt64())
+			cmd.GID = &gid
+		}
+
+		group, err = client.CreateGroup(ctx, cmd)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to create group", err.Error())
+			return
+		}
 	}
 
 	if !data.Users.IsNull() {

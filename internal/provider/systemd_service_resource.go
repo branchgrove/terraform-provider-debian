@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -38,6 +39,7 @@ type SystemdServiceResourceModel struct {
 	Unit       *SystemdUnitSectionModel    `tfsdk:"unit"`
 	Service    *SystemdServiceSectionModel `tfsdk:"service"`
 	Install    *SystemdInstallSectionModel `tfsdk:"install"`
+	Overwrite  types.Bool                  `tfsdk:"overwrite"`
 	Connection ConnectionModel             `tfsdk:"ssh"`
 }
 
@@ -361,6 +363,12 @@ func (r *SystemdServiceResource) Schema(ctx context.Context, req resource.Schema
 					},
 				},
 			},
+			"overwrite": schema.BoolAttribute{
+				MarkdownDescription: "Overwrite the resource if it already exists. Defaults to `false`.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+			},
 			"ssh": connectionSchema,
 		},
 	}
@@ -402,6 +410,18 @@ func (r *SystemdServiceResource) Create(ctx context.Context, req resource.Create
 	}
 
 	name := data.Name.ValueString()
+
+	exists, err := client.ServiceUnitExists(ctx, name)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to check if service unit exists", err.Error())
+		return
+	}
+	if exists {
+		if !data.Overwrite.ValueBool() {
+			resp.Diagnostics.AddError("Resource already exists", "The service unit already exists and overwrite is false")
+			return
+		}
+	}
 
 	if data.ownsUnitFile() {
 		unit := data.toServiceUnit(ctx, &resp.Diagnostics)

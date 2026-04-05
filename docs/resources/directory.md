@@ -66,6 +66,7 @@ resource "debian_directory" "shared" {
 - `gid` (Number) Numeric group ID of the directory group. Conflicts with `group`.
 - `group` (String) Group of the directory. Conflicts with `gid`.
 - `mode` (String) Directory permission mode, for example, `0755`. Defaults to `0755`.
+- `overwrite` (Boolean) Overwrite the directory if it already exists. Defaults to `false`.
 - `owner` (String) Owner of the directory. Conflicts with `uid`.
 - `uid` (Number) Numeric user ID of the directory owner. Conflicts with `owner`.
 

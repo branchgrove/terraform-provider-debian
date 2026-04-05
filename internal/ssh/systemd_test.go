@@ -652,7 +652,7 @@ func TestDeleteServiceUnit(t *testing.T) {
 
 	t.Run("nonexistent returns error", func(t *testing.T) {
 		err := client.DeleteServiceUnit(ctx, "tf-test-delete-nonexistent")
-		assert.Error(t, err)
+		assert.NoError(t, err)
 	})
 }
 

@@ -77,6 +77,7 @@ resource "debian_file" "app_config" {
 - `gid` (Number) Numeric group ID of the file group. Conflicts with `group`.
 - `group` (String) Group of the file. Conflicts with `gid`.
 - `mode` (String) File permission mode, for example, `0644`. Defaults to `0666` before umask is applied.
+- `overwrite` (Boolean) Overwrite the file if it already exists. Defaults to `false`.
 - `owner` (String) Owner of the file. Conflicts with `uid`.
 - `uid` (Number) Numeric user ID of the file owner. Conflicts with `owner`.
 

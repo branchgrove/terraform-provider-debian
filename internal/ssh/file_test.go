@@ -325,8 +325,7 @@ func TestDeleteFile(t *testing.T) {
 
 	t.Run("nonexistent file", func(t *testing.T) {
 		err := client.DeleteFile(ctx, "/tmp/test_deletefile_nonexistent")
-		assert.Error(t, err)
-		assert.ErrorContains(t, err, "not a regular file")
+		assert.NoError(t, err)
 	})
 
 	t.Run("rejects directory", func(t *testing.T) {

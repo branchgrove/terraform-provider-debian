@@ -68,6 +68,7 @@ resource "debian_user" "prometheus" {
 - `group` (String) Primary group name. Conflicts with `gid`.
 - `groups` (Set of String) Supplementary group names. Overwrites all supplementary memberships. When null, memberships are not managed.
 - `home` (String) Home directory path.
+- `overwrite` (Boolean) Overwrite the user if it already exists. Defaults to `false`.
 - `shell` (String) Login shell.
 - `system` (Boolean) Create as system user. Defaults to `false`. Changing this forces recreation.
 - `uid` (Number) Numeric user ID. If omitted, the system assigns one.

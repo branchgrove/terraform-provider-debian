@@ -200,8 +200,7 @@ func TestDeleteDirectory(t *testing.T) {
 
 	t.Run("nonexistent directory", func(t *testing.T) {
 		err := client.DeleteDirectory(ctx, "/tmp/test_rmdir_nonexistent")
-		assert.Error(t, err)
-		assert.ErrorContains(t, err, "not a directory")
+		assert.NoError(t, err)
 	})
 }
 

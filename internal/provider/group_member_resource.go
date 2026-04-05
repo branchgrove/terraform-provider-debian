@@ -2,13 +2,17 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/branchgrove/terraform-provider-debian/internal/ssh"
+
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -28,6 +32,7 @@ type GroupMemberResource struct {
 type GroupMemberResourceModel struct {
 	User       types.String    `tfsdk:"user"`
 	Group      types.String    `tfsdk:"group"`
+	Overwrite  types.Bool      `tfsdk:"overwrite"`
 	Connection ConnectionModel `tfsdk:"ssh"`
 }
 
@@ -53,6 +58,12 @@ func (r *GroupMemberResource) Schema(ctx context.Context, req resource.SchemaReq
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+			},
+			"overwrite": schema.BoolAttribute{
+				MarkdownDescription: "Continue instead of failing if the membership already exists. Defaults to `false`.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
 			},
 			"ssh": connectionSchema,
 		},
@@ -87,6 +98,19 @@ func (r *GroupMemberResource) Create(ctx context.Context, req resource.CreateReq
 	client, err := data.Connection.GetClient(ctx, r.providerData)
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to get SSH client", err.Error())
+		return
+	}
+
+	group, err := client.GetGroup(ctx, data.Group.ValueString())
+	if err == nil {
+		if slices.Contains(group.Members, data.User.ValueString()) {
+			if !data.Overwrite.ValueBool() {
+				resp.Diagnostics.AddError("Resource already exists", "The group membership already exists and overwrite is false")
+				return
+			}
+		}
+	} else if !errors.Is(err, ssh.ErrNotFound) {
+		resp.Diagnostics.AddError("Failed to check if group exists", err.Error())
 		return
 	}
 

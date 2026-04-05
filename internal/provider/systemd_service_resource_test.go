@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -110,7 +111,7 @@ func TestAccSystemdServiceResource_importState(t *testing.T) {
 				ImportStateId:                        testImportID("tf-acc-import"),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "name",
-				ImportStateVerifyIgnore:              []string{"ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
+				ImportStateVerifyIgnore:              []string{"overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
 			},
 		},
 	})
@@ -197,7 +198,7 @@ func TestAccSystemdServiceResource_packageInstalledImport(t *testing.T) {
 				ImportStateId:                        testImportID("cron"),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "name",
-				ImportStateVerifyIgnore:              []string{"ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
+				ImportStateVerifyIgnore:              []string{"overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
 			},
 		},
 	})
@@ -311,4 +312,56 @@ resource "debian_systemd_service" "test" {
 %[2]s
 }
 `, name, testSSHBlock())
+}
+
+func TestAccSystemdServiceResource_overwrite(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccSystemdServiceConfigOverwrite("tf-acc-service-ow", false),
+				ExpectError: regexp.MustCompile("Resource already exists"),
+			},
+			{
+				Config: testAccSystemdServiceConfigOverwrite("tf-acc-service-ow", true),
+			},
+		},
+	})
+}
+
+func testAccSystemdServiceConfigOverwrite(name string, overwrite bool) string {
+	return testProviderBlock() + fmt.Sprintf(`
+resource "debian_systemd_service" "setup" {
+  name    = %[1]q
+  enabled = false
+  active  = false
+
+  unit = {
+    description = "Test setup"
+  }
+  service = {
+    type       = "oneshot"
+    exec_start = "/bin/true"
+  }
+%[3]s
+}
+
+resource "debian_systemd_service" "test" {
+  name       = %[1]q
+  enabled    = false
+  active     = false
+  overwrite  = %[2]t
+  depends_on = [debian_systemd_service.setup]
+
+  unit = {
+    description = "Test setup"
+  }
+  service = {
+    type       = "oneshot"
+    exec_start = "/bin/true"
+  }
+%[3]s
+}
+`, name, overwrite, testSSHBlock())
 }

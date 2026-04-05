@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -110,7 +111,7 @@ func TestAccSystemdTimerResource_importState(t *testing.T) {
 				ImportStateId:                        testImportID("tf-acc-timer-import"),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "name",
-				ImportStateVerifyIgnore:              []string{"ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
+				ImportStateVerifyIgnore:              []string{"overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
 			},
 		},
 	})
@@ -196,4 +197,58 @@ resource "debian_systemd_timer" "test" {
 %[2]s
 }
 `, name, testSSHBlock())
+}
+
+func TestAccSystemdTimerResource_overwrite(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccSystemdTimerConfigOverwrite("tf-acc-timer-ow", false),
+				ExpectError: regexp.MustCompile("Resource already exists"),
+			},
+			{
+				Config: testAccSystemdTimerConfigOverwrite("tf-acc-timer-ow", true),
+			},
+		},
+	})
+}
+
+func testAccSystemdTimerConfigOverwrite(name string, overwrite bool) string {
+	return testProviderBlock() + fmt.Sprintf(`
+resource "debian_systemd_service" "setup" {
+  name    = %[1]q
+  enabled = false
+  active  = false
+  service = {
+    type       = "oneshot"
+    exec_start = "/bin/true"
+  }
+%[3]s
+}
+
+resource "debian_systemd_timer" "setup" {
+  name       = %[1]q
+  enabled    = false
+  active     = false
+  depends_on = [debian_systemd_service.setup]
+  timer = {
+    on_calendar = "daily"
+  }
+%[3]s
+}
+
+resource "debian_systemd_timer" "test" {
+  name       = %[1]q
+  enabled    = false
+  active     = false
+  overwrite  = %[2]t
+  depends_on = [debian_systemd_timer.setup]
+  timer = {
+    on_calendar = "daily"
+  }
+%[3]s
+}
+`, name, overwrite, testSSHBlock())
 }

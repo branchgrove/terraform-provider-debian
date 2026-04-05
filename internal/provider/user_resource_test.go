@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -65,7 +66,7 @@ func TestAccUserResource_importState(t *testing.T) {
 				ImportStateId:                        testImportID("tfuser3"),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "name",
-				ImportStateVerifyIgnore:              []string{"system", "create_home"},
+				ImportStateVerifyIgnore:              []string{"system", "create_home", "overwrite"},
 			},
 		},
 	})
@@ -117,4 +118,36 @@ resource "debian_user" "test" {
 %[2]s
 }
 `, name, testSSHBlock())
+}
+
+func TestAccUserResource_overwrite(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccUserConfigOverwrite("tfuser_ow", false),
+				ExpectError: regexp.MustCompile("Resource already exists"),
+			},
+			{
+				Config: testAccUserConfigOverwrite("tfuser_ow", true),
+			},
+		},
+	})
+}
+
+func testAccUserConfigOverwrite(name string, overwrite bool) string {
+	return testProviderBlock() + fmt.Sprintf(`
+resource "debian_user" "setup" {
+  name = %[1]q
+%[3]s
+}
+
+resource "debian_user" "test" {
+  name       = %[1]q
+  overwrite  = %[2]t
+  depends_on = [debian_user.setup]
+%[3]s
+}
+`, name, overwrite, testSSHBlock())
 }

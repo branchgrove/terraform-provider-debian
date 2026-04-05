@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -60,7 +61,7 @@ func TestAccGroupResource_importState(t *testing.T) {
 				ImportStateId:                        testImportID("tfgroup2"),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "name",
-				ImportStateVerifyIgnore:              []string{"system"},
+				ImportStateVerifyIgnore:              []string{"system", "overwrite"},
 			},
 		},
 	})
@@ -122,4 +123,36 @@ func joinStrings(s []string) string {
 		result += v
 	}
 	return result
+}
+
+func TestAccGroupResource_overwrite(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccGroupConfigOverwrite("tfgroup_ow", false),
+				ExpectError: regexp.MustCompile("Resource already exists"),
+			},
+			{
+				Config: testAccGroupConfigOverwrite("tfgroup_ow", true),
+			},
+		},
+	})
+}
+
+func testAccGroupConfigOverwrite(name string, overwrite bool) string {
+	return testProviderBlock() + fmt.Sprintf(`
+resource "debian_group" "setup" {
+  name = %[1]q
+%[3]s
+}
+
+resource "debian_group" "test" {
+  name       = %[1]q
+  overwrite  = %[2]t
+  depends_on = [debian_group.setup]
+%[3]s
+}
+`, name, overwrite, testSSHBlock())
 }

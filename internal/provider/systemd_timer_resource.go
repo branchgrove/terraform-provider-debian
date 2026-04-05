@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -40,6 +41,7 @@ type SystemdTimerResourceModel struct {
 	Unit       *SystemdUnitSectionModel    `tfsdk:"unit"`
 	Timer      *SystemdTimerSectionModel   `tfsdk:"timer"`
 	Install    *SystemdInstallSectionModel `tfsdk:"install"`
+	Overwrite  types.Bool                  `tfsdk:"overwrite"`
 	Connection ConnectionModel             `tfsdk:"ssh"`
 }
 
@@ -275,6 +277,12 @@ func (r *SystemdTimerResource) Schema(ctx context.Context, req resource.SchemaRe
 					},
 				},
 			},
+			"overwrite": schema.BoolAttribute{
+				MarkdownDescription: "Overwrite the resource if it already exists. Defaults to `false`.",
+				Optional:            true,
+				Computed:            true,
+				Default:             booldefault.StaticBool(false),
+			},
 			"ssh": connectionSchema,
 		},
 	}
@@ -357,6 +365,18 @@ func (r *SystemdTimerResource) Create(ctx context.Context, req resource.CreateRe
 	}
 
 	name := data.Name.ValueString()
+
+	exists, err := client.TimerUnitExists(ctx, name)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to check if timer unit exists", err.Error())
+		return
+	}
+	if exists {
+		if !data.Overwrite.ValueBool() {
+			resp.Diagnostics.AddError("Resource already exists", "The timer unit already exists and overwrite is false")
+			return
+		}
+	}
 
 	unit := data.toTimerUnit(ctx, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {

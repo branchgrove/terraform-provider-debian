@@ -250,10 +250,19 @@ func (c *Client) ReadFile(ctx context.Context, filePath string, maxSize int) (st
 func (c *Client) DeleteFile(ctx context.Context, filePath string) error {
 	env := map[string]string{"FILE": filePath}
 
-	_, err := c.Run(ctx, `test -f "$FILE"`, env, nil)
+	_, err := c.Run(ctx, `test -e "$FILE"`, env, nil)
 	if err != nil {
 		if _, ok := errors.AsType[*RunError](err); ok {
-			return fmt.Errorf("delete file: %q does not exist or is not a regular file", filePath)
+			// Does not exist, consider it already deleted
+			return nil
+		}
+		return fmt.Errorf("delete file: check existence: %w", err)
+	}
+
+	_, err = c.Run(ctx, `test -f "$FILE"`, env, nil)
+	if err != nil {
+		if _, ok := errors.AsType[*RunError](err); ok {
+			return fmt.Errorf("delete file: %q is not a regular file", filePath)
 		}
 		return fmt.Errorf("delete file: %w", err)
 	}

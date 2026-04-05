@@ -224,6 +224,11 @@ func (c *Client) DeleteUser(ctx context.Context, name string) error {
 
 	_, err := c.Run(ctx, `userdel "$NAME"`, env, nil)
 	if err != nil {
+		var runErr *RunError
+		if errors.As(err, &runErr) && runErr.ExitCode == 6 {
+			// User already does not exist
+			return nil
+		}
 		return fmt.Errorf("delete user: userdel %q: %w", name, err)
 	}
 

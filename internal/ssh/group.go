@@ -144,6 +144,11 @@ func (c *Client) RemoveGroupMember(ctx context.Context, group, user string) erro
 
 	_, err := c.Run(ctx, `gpasswd -d "$USER" "$GROUP"`, env, nil)
 	if err != nil {
+		var runErr *RunError
+		if errors.As(err, &runErr) && runErr.ExitCode == 3 {
+			// Already removed
+			return nil
+		}
 		return fmt.Errorf("remove group member: gpasswd -d %q %q: %w", user, group, err)
 	}
 
@@ -156,6 +161,11 @@ func (c *Client) DeleteGroup(ctx context.Context, name string) error {
 
 	_, err := c.Run(ctx, `groupdel "$NAME"`, env, nil)
 	if err != nil {
+		var runErr *RunError
+		if errors.As(err, &runErr) && runErr.ExitCode == 6 {
+			// Group already does not exist
+			return nil
+		}
 		return fmt.Errorf("delete group: groupdel %q: %w", name, err)
 	}
 

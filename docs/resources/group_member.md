@@ -43,6 +43,10 @@ resource "debian_group_member" "deploy_www" {
 - `ssh` (Attributes) SSH connection configuration. Specify authentication here or inherit it from the provider's `private_key` / `private_keys`. (see [below for nested schema](#nestedatt--ssh))
 - `user` (String) Username to add to the group. Changing this forces recreation.
 
+### Optional
+
+- `overwrite` (Boolean) Continue instead of failing if the membership already exists. Defaults to `false`.
+
 <a id="nestedatt--ssh"></a>
 ### Nested Schema for `ssh`
 

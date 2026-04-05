@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -70,7 +71,7 @@ func TestAccDirectoryResource_importState(t *testing.T) {
 				ImportStateId:                        testImportID(dirPath),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "path",
-				ImportStateVerifyIgnore:              []string{"create_parents", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
+				ImportStateVerifyIgnore:              []string{"create_parents", "overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
 			},
 		},
 	})
@@ -91,7 +92,7 @@ func TestAccDirectoryResource_importStateWithKey(t *testing.T) {
 				ImportStateId:                        testImportIDWithKey(dirPath),
 				ImportStateVerify:                    true,
 				ImportStateVerifyIdentifierAttribute: "path",
-				ImportStateVerifyIgnore:              []string{"create_parents", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
+				ImportStateVerifyIgnore:              []string{"create_parents", "overwrite", "ssh.private_key", "ssh.public_key", "ssh.password", "ssh.host_key"},
 			},
 		},
 	})
@@ -191,4 +192,36 @@ resource "debian_directory" "test" {
 %[3]s
 }
 `, path, mode, testSSHBlock())
+}
+
+func TestAccDirectoryResource_overwrite(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccDirectoryConfigOverwrite("/tmp/tf_acc_dir_overwrite", false),
+				ExpectError: regexp.MustCompile("Resource already exists"),
+			},
+			{
+				Config: testAccDirectoryConfigOverwrite("/tmp/tf_acc_dir_overwrite", true),
+			},
+		},
+	})
+}
+
+func testAccDirectoryConfigOverwrite(path string, overwrite bool) string {
+	return testProviderBlock() + fmt.Sprintf(`
+resource "debian_directory" "setup" {
+  path = %[1]q
+%[3]s
+}
+
+resource "debian_directory" "test" {
+  path       = %[1]q
+  overwrite  = %[2]t
+  depends_on = [debian_directory.setup]
+%[3]s
+}
+`, path, overwrite, testSSHBlock())
 }
