@@ -70,7 +70,7 @@ func (a *AptUpdateAction) Invoke(ctx context.Context, req action.InvokeRequest, 
 		return
 	}
 
-	res, err := client.Run(ctx, `apt-get update`, nil, nil)
+	res, err := client.AptUpdate(ctx)
 	if err != nil {
 		resp.Diagnostics.AddError("apt-get update failed", err.Error())
 		return

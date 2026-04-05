@@ -34,22 +34,36 @@ import (
 // serialises access; stale connections are detected via keepalive and replaced
 // transparently.
 type Manager struct {
-	mu      sync.Mutex
-	clients map[string]*Client
+	mu       sync.Mutex
+	clients  map[string]*Client
+	aptLocks map[string]*sync.Mutex // Persists across reconnections
 }
 
 // Client wraps an SSH connection with a semaphore that limits concurrent
 // sessions to stay within the host's MaxSessions.
 type Client struct {
-	ssh *ssh.Client
-	sem *semaphore.Weighted
+	ssh   *ssh.Client
+	sem   *semaphore.Weighted
+	aptMu *sync.Mutex
+}
+
+// LockApt acquires a per-host lock to ensure exclusive access for apt-get
+// operations, preventing failures from concurrent package manager executions.
+func (c *Client) LockApt() {
+	c.aptMu.Lock()
+}
+
+// UnlockApt releases the per-host apt-get lock.
+func (c *Client) UnlockApt() {
+	c.aptMu.Unlock()
 }
 
 // NewManager creates a Manager that caches and reuses SSH connections keyed by user@host:port.
 func NewManager() *Manager {
 	return &Manager{
-		mu:      sync.Mutex{},
-		clients: make(map[string]*Client),
+		mu:       sync.Mutex{},
+		clients:  make(map[string]*Client),
+		aptLocks: make(map[string]*sync.Mutex),
 	}
 }
 
@@ -98,6 +112,12 @@ func (m *Manager) GetClient(ctx context.Context, host string, port int, user str
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	aptMu, ok := m.aptLocks[key]
+	if !ok {
+		aptMu = &sync.Mutex{}
+		m.aptLocks[key] = aptMu
+	}
 
 	if client, ok := m.clients[key]; ok {
 		if client.isAlive() {
@@ -154,8 +174,9 @@ func (m *Manager) GetClient(ctx context.Context, host string, port int, user str
 	}
 
 	m.clients[key] = &Client{
-		ssh: client,
-		sem: semaphore.NewWeighted(int64(sessions)),
+		ssh:   client,
+		sem:   semaphore.NewWeighted(int64(sessions)),
+		aptMu: aptMu,
 	}
 
 	return m.clients[key], nil

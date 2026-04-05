@@ -5,12 +5,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/branchgrove/terraform-provider-debian/internal/ssh"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 )
 
+var sharedSSHManager = ssh.NewManager()
+
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
-	"debian": providerserver.NewProtocol6WithError(New("test")()),
+	"debian": providerserver.NewProtocol6WithError(func() func() *DebianProvider {
+		return func() *DebianProvider {
+			return &DebianProvider{
+				version:     "test",
+				testManager: sharedSSHManager,
+			}
+		}
+	}()()),
 }
 
 func testAccPreCheck(t *testing.T) {

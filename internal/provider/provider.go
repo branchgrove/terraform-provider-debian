@@ -20,7 +20,8 @@ var _ provider.ProviderWithEphemeralResources = &DebianProvider{}
 var _ provider.ProviderWithActions = &DebianProvider{}
 
 type DebianProvider struct {
-	version string
+	version     string
+	testManager *ssh.Manager // Set only during testing to share a single manager across instances
 }
 
 type DebianProviderModel struct {
@@ -73,6 +74,9 @@ func (p *DebianProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	pd := &ProviderData{
 		SSHManager:  ssh.NewManager(),
 		PrivateKeys: make(map[string]string),
+	}
+	if p.testManager != nil {
+		pd.SSHManager = p.testManager
 	}
 
 	if !data.PrivateKey.IsNull() {

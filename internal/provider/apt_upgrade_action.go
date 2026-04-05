@@ -76,12 +76,7 @@ func (a *AptUpgradeAction) Invoke(ctx context.Context, req action.InvokeRequest,
 		return
 	}
 
-	cmd := `DEBIAN_FRONTEND=noninteractive apt-get upgrade -y`
-	if data.DistUpgrade.ValueBool() {
-		cmd = `DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y`
-	}
-
-	res, err := client.Run(ctx, cmd, nil, nil)
+	res, err := client.AptUpgrade(ctx, data.DistUpgrade.ValueBool())
 	if err != nil {
 		resp.Diagnostics.AddError("apt-get upgrade failed", err.Error())
 		return
